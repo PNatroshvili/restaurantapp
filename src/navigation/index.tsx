@@ -15,6 +15,7 @@ import { RootStackParamList, MainTabParamList } from '../types';
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
+import EmailVerifyScreen from '../screens/auth/EmailVerifyScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import MapScreen from '../screens/map/MapScreen';
 import SearchScreen from '../screens/search/SearchScreen';
@@ -225,6 +226,11 @@ export default function Navigation() {
         <Stack.Screen
           name="Register"
           component={RegisterScreen}
+          options={{ presentation: 'modal', animation: 'slide_from_bottom', animationDuration: 350 }}
+        />
+        <Stack.Screen
+          name="EmailVerify"
+          component={EmailVerifyScreen}
           options={{ presentation: 'modal', animation: 'slide_from_bottom', animationDuration: 350 }}
         />
         <Stack.Screen name="Privacy" component={PrivacyScreen} options={{ animation: 'slide_from_right' }} />

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, RefreshControl, Image, Switch,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, Image, Switch,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -17,6 +17,7 @@ import { authApi } from '../../api/auth';
 import { RootStackParamList } from '../../types';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import Button from '../../components/common/Button';
+import ConfirmModal from '../../components/common/ConfirmModal';
 
 const APP_VERSION = '1.0.0';
 
@@ -29,6 +30,8 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(user?.avatar || null);
   const [notifEnabled, setNotifEnabled] = useState(true);
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
+  const [onboardingConfirm, setOnboardingConfirm] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem('notifications_enabled').then(v => {
@@ -74,10 +77,7 @@ export default function ProfileScreen() {
 
   const handleLogout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('გამოსვლა', 'გსურთ გამოსვლა?', [
-      { text: 'გაუქმება', style: 'cancel' },
-      { text: 'გამოსვლა', style: 'destructive', onPress: logout },
-    ]);
+    setLogoutConfirm(true);
   };
 
   const statusColor = (status: string) => {
@@ -111,6 +111,25 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <ConfirmModal
+        visible={logoutConfirm}
+        title="გამოსვლა"
+        message="ნამდვილად გსურთ გამოსვლა ანგარიშიდან?"
+        confirmLabel="გამოსვლა"
+        destructive
+        icon="log-out-outline"
+        onConfirm={() => { setLogoutConfirm(false); logout(); }}
+        onCancel={() => setLogoutConfirm(false)}
+      />
+      <ConfirmModal
+        visible={onboardingConfirm}
+        title="ონბორდინგი"
+        message="ნამდვილად გსურთ ხელახლა ნახვა? გადატვირთეთ აპლიკაცია შემდეგ."
+        confirmLabel="დიახ, გადატვირთვა"
+        icon="refresh-outline"
+        onConfirm={async () => { setOnboardingConfirm(false); await AsyncStorage.removeItem('onboarding_done'); }}
+        onCancel={() => setOnboardingConfirm(false)}
+      />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}
@@ -135,7 +154,7 @@ export default function ProfileScreen() {
               <Ionicons name="camera" size={12} color="#fff" />
             </View>
           </TouchableOpacity>
-          <Text style={styles.name}>{user?.name}</Text>
+          <Text style={styles.name}>{user?.name}{user?.lastName ? ` ${user.lastName}` : ''}</Text>
           <Text style={styles.contact}>{user?.phone || user?.email}</Text>
 
           {/* Stats row */}
@@ -226,17 +245,7 @@ export default function ProfileScreen() {
           <MenuRow
             icon="refresh-outline"
             label="ონბორდინგის ხელახლა ნახვა"
-            onPress={() => {
-              Alert.alert('ონბორდინგი', 'ნამდვილად გსურთ ხელახლა ნახვა?', [
-                { text: 'გაუქმება', style: 'cancel' },
-                {
-                  text: 'დიახ', onPress: async () => {
-                    await AsyncStorage.removeItem('onboarding_done');
-                    Alert.alert('', 'გადატვირთეთ აპლიკაცია ონბორდინგის სანახავად');
-                  }
-                }
-              ]);
-            }}
+            onPress={() => setOnboardingConfirm(true)}
             last
           />
         </View>

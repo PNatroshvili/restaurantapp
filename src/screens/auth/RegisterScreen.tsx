@@ -18,10 +18,25 @@ export default function RegisterScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const login = useAuthStore((s) => s.login);
   const [name, setName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  const validateEmail = (val: string) => {
+    if (!val.trim()) { setEmailError('ელფოსტა სავალდებულოა'); return false; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) { setEmailError('არასწორი ელფოსტის ფორმატი'); return false; }
+    setEmailError(''); return true;
+  };
+
+  const validatePassword = (val: string) => {
+    if (!val) { setPasswordError(''); return; }
+    if (val.length < 6) setPasswordError('პაროლი მინიმუმ 6 სიმბოლო');
+    else setPasswordError('');
+  };
 
   const handleGoogleLogin = async (idToken: string) => {
     try {
@@ -34,15 +49,21 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
-    if (!name || !password || (!phone && !email)) {
-      Alert.alert('შეცდომა', 'სახელი, პაროლი და ტელეფონი ან ელფოსტა სავალდებულოა');
+    if (!name.trim() || !lastName.trim() || !phone.trim() || !email.trim() || !password) {
+      Alert.alert('შეცდომა', 'ყველა ველი სავალდებულოა');
       return;
     }
+    if (!validateEmail(email)) return;
+    if (passwordError) return;
     setLoading(true);
     try {
-      const { data } = await authApi.register({ name, phone, email, password });
-      await login(data.tokens, data.user);
-      navigation.goBack();
+      const { data } = await authApi.register({ name, lastName, phone, email, password });
+      if ((data as any).requiresVerification) {
+        navigation.navigate('EmailVerify', { email: (data as any).email });
+      } else {
+        await login((data as any).tokens, (data as any).user);
+        navigation.goBack();
+      }
     } catch (e: any) {
       Alert.alert('შეცდომა', e?.response?.data?.message || 'რეგისტრაცია ვერ მოხერხდა');
     } finally {
@@ -64,9 +85,33 @@ export default function RegisterScreen() {
 
         <View style={styles.form}>
           <TextInput style={styles.input} placeholder="სახელი" value={name} onChangeText={setName} placeholderTextColor={COLORS.textMuted} />
+          <TextInput style={styles.input} placeholder="გვარი" value={lastName} onChangeText={setLastName} placeholderTextColor={COLORS.textMuted} />
           <TextInput style={styles.input} placeholder="ტელეფონი" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={COLORS.textMuted} />
-          <TextInput style={styles.input} placeholder="ელფოსტა (არასავალდებულო)" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={COLORS.textMuted} />
-          <TextInput style={styles.input} placeholder="პაროლი" value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor={COLORS.textMuted} />
+          <View>
+            <TextInput
+              style={[styles.input, emailError ? styles.inputError : null]}
+              placeholder="ელფოსტა"
+              value={email}
+              onChangeText={(v) => { setEmail(v); if (emailError) validateEmail(v); }}
+              onBlur={() => email && validateEmail(email)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholderTextColor={COLORS.textMuted}
+            />
+            {emailError ? <Text style={styles.fieldError}>{emailError}</Text> : null}
+          </View>
+          <View>
+            <TextInput
+              style={[styles.input, passwordError ? styles.inputError : null]}
+              placeholder="პაროლი"
+              value={password}
+              onChangeText={(v) => { setPassword(v); if (passwordError) validatePassword(v); }}
+              onBlur={() => validatePassword(password)}
+              secureTextEntry
+              placeholderTextColor={COLORS.textMuted}
+            />
+            {passwordError ? <Text style={styles.fieldError}>{passwordError}</Text> : null}
+          </View>
           <Button label="რეგისტრაცია" onPress={handleRegister} loading={loading} />
         </View>
 
@@ -99,6 +144,8 @@ const styles = StyleSheet.create({
     height: 50, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md, fontSize: 15, color: COLORS.text, backgroundColor: COLORS.surface,
   },
+  inputError: { borderColor: COLORS.error },
+  fieldError: { fontSize: 12, color: COLORS.error, fontWeight: '600', marginTop: 4, marginLeft: 4 },
   link: { textAlign: 'center', color: COLORS.textSecondary, fontSize: 14 },
   linkBold: { color: COLORS.primary, fontWeight: '700' },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },

@@ -3,6 +3,7 @@ export type UserRole = 'user' | 'restaurant_manager' | 'admin';
 export interface User {
   id: string;
   name: string;
+  lastName?: string;
   phone?: string;
   email?: string;
   avatar?: string;
@@ -127,6 +128,7 @@ export type RootStackParamList = {
   Search: { cuisineId?: string; cuisineName?: string; dishQuery?: string } | undefined;
   Login: undefined;
   Register: undefined;
+  EmailVerify: { email: string };
   Privacy: undefined;
   Terms: undefined;
   About: undefined;

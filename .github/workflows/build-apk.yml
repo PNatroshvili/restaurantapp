@@ -3,6 +3,7 @@ name: Build Release APK
 on:
   push:
     branches: [main, master]
+    tags: ['v*']
   workflow_dispatch:
 
 jobs:
@@ -43,3 +44,20 @@ jobs:
         with:
           name: app-release
           path: android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/release/app-release.apk
+          generate_release_notes: false
+          body: |
+            ## Restaurant App ${{ github.ref_name }}
+
+            ### v1.3.0 Changes
+            - Email verification with 6-digit code on registration
+            - Registration requires: name, last name, phone, email, password
+            - Profile edit: last name, email re-verification, password change
+            - Profile screen shows full name + last name
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

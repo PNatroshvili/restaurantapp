@@ -2,15 +2,16 @@
   "expo": {
     "name": "RestaurantApp",
     "slug": "RestaurantApp",
-    "version": "1.0.0",
+    "version": "1.2.0",
+    "scheme": "ge.skup.restaurants",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A0E1A"
     },
     "ios": {
       "supportsTablet": true
@@ -18,13 +19,32 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#00B67A"
       },
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyC2y2WxVweomtTM6DvGZMwyCpk62h1duFA"
+        }
+      },
+      "package": "ge.skup.restaurants",
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font",
+      "expo-calendar",
+      "expo-web-browser"
+    ]
   }
 }

@@ -1,27 +1,33 @@
-export const API_BASE_URL = __DEV__
-  ? 'http://localhost:3000/v1'
-  : 'https://restaurant-backend-bm4s.onrender.com/v1';
+export const API_BASE_URL = 'https://api.skup.ge/v1';
 
 export const COLORS = {
   primary: '#00B67A',
   primaryDark: '#009962',
   primaryLight: '#00291C',
-  background: '#0A0E1A',
-  surface: '#111929',
-  surfaceElevated: '#16213A',
-  border: '#1E2D3D',
-  text: '#F0F4FF',
-  textSecondary: '#8A9BBE',
-  textMuted: '#4A5A7A',
+  background: '#080C18',
+  surface: '#0F1724',
+  surfaceElevated: '#162035',
+  surfaceHigh: '#1C2940',
+  border: '#1A2A3A',
+  borderLight: '#243344',
+  text: '#EEF2FF',
+  textSecondary: '#7A8EAF',
+  textMuted: '#3F5070',
   white: '#FFFFFF',
   black: '#000000',
   success: '#00C896',
   warning: '#F59E0B',
   error: '#EF4444',
   star: '#FBBF24',
+  accent: '#F59E0B',
+  accentDeep: '#D97706',
+  rose: '#F43F5E',
+  indigo: '#818CF8',
   overlay: 'rgba(0,0,0,0.75)',
   mapMarker: '#00B67A',
   score: '#00C896',
+  scoreGood: '#00D4A8',
+  scoreMid: '#F59E0B',
 };
 
 export const FONTS = {

@@ -106,9 +106,9 @@ android {
         }
         release {
             storeFile file('release.keystore')
-            storePassword 'SkupRest2026!'
-            keyAlias 'skup-restaurants'
-            keyPassword 'SkupRest2026!'
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: 'SkupRest2026!'
+            keyAlias System.getenv("KEY_ALIAS") ?: 'skup-restaurants'
+            keyPassword System.getenv("KEY_PASSWORD") ?: 'SkupRest2026!'
         }
     }
     buildTypes {

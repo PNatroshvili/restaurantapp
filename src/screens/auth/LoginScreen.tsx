@@ -26,6 +26,17 @@ export default function LoginScreen() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [identifierError, setIdentifierError] = useState('');
+
+  const validateIdentifier = (val: string) => {
+    if (!val.trim()) { setIdentifierError(''); return; }
+    const isEmail = val.includes('@');
+    if (isEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+      setIdentifierError('არასწორი ელფოსტის ფორმატი');
+    } else {
+      setIdentifierError('');
+    }
+  };
 
   const handleLogin = async (email?: string, pass?: string) => {
     const id = email ?? identifier;
@@ -93,15 +104,19 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="ტელეფონი ან ელფოსტა"
-            value={identifier}
-            onChangeText={setIdentifier}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholderTextColor={COLORS.textMuted}
-          />
+          <View>
+            <TextInput
+              style={[styles.input, identifierError ? styles.inputError : null]}
+              placeholder="ტელეფონი ან ელფოსტა"
+              value={identifier}
+              onChangeText={(v) => { setIdentifier(v); if (identifierError) validateIdentifier(v); }}
+              onBlur={() => validateIdentifier(identifier)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholderTextColor={COLORS.textMuted}
+            />
+            {identifierError ? <Text style={styles.fieldError}>{identifierError}</Text> : null}
+          </View>
           <TextInput
             style={styles.input}
             placeholder="პაროლი"
@@ -150,6 +165,8 @@ const styles = StyleSheet.create({
     height: 50, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md, fontSize: 15, color: COLORS.text, backgroundColor: COLORS.surface,
   },
+  inputError: { borderColor: COLORS.error },
+  fieldError: { fontSize: 12, color: COLORS.error, fontWeight: '600', marginTop: 4, marginLeft: 4 },
   link: { textAlign: 'center', color: COLORS.textSecondary, fontSize: 14 },
   linkBold: { color: COLORS.primary, fontWeight: '700' },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },

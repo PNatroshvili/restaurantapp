@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, TouchableOpacity, FlatList,
-  Image, ScrollView, Modal, Animated, Easing,
+  Image, ScrollView, Modal, Animated, Easing, Keyboard, ActivityIndicator,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -13,7 +15,7 @@ import { restaurantsApi, cuisinesApi } from '../../api/restaurants';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import { SkeletonRestaurantRow } from '../../components/common/Skeleton';
 
-type SortKey = 'rating' | 'name' | 'discount';
+type SortKey = 'rating' | 'name' | 'discount' | 'distance';
 type PriceFilter = 1 | 2 | 3 | null;
 type DietaryKey = 'vegan' | 'vegetarian' | 'halal' | 'glutenfree' | 'seafood';
 
@@ -24,6 +26,14 @@ const DIETARY_OPTIONS: { key: DietaryKey; label: string; emoji: string; keywords
   { key: 'glutenfree', label: 'უგლუტენო',      emoji: '🌾', keywords: ['gluten', 'გლუტენ'] },
   { key: 'seafood',    label: 'ზღვის პროდ.',   emoji: '🦐', keywords: ['seafood', 'fish', 'ზღვ', 'თევზ'] },
 ];
+
+function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 const HISTORY_KEY = 'search_history';
 const MAX_HISTORY = 5;
@@ -36,10 +46,8 @@ const getDiscount = (id: string): number | null => {
 const coverOf = (r: Restaurant): string | null =>
   r.cover_photo || r.coverPhoto || r.photos?.find(p => p.isCover)?.url || r.photos?.[0]?.url || null;
 
-const scoreColor = (rating: number) => {
-  const s = rating * 2;
-  return s >= 9 ? '#00C896' : s >= 7 ? '#F59E0B' : COLORS.textMuted;
-};
+const scoreColor = (rating: number) =>
+  rating >= 4.5 ? COLORS.scoreGood : rating >= 3.5 ? COLORS.scoreMid : COLORS.textMuted;
 
 type RouteProps = RouteProp<RootStackParamList, 'Search'>;
 
@@ -85,12 +93,26 @@ export default function SearchScreen() {
   // Secondary filters (in modal)
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [filterCuisine, setFilterCuisine] = useState<string | null>(route.params?.cuisineId || null);
+
+  useEffect(() => {
+    if (route.params?.cuisineId) {
+      setFilterCuisine(route.params.cuisineId);
+      setSortKey('rating');
+      setSearchQuery('');
+    }
+  }, [route.params?.cuisineId]);
   const [filterPrice, setFilterPrice] = useState<PriceFilter>(null);
   const [filterDietary, setFilterDietary] = useState<Set<DietaryKey>>(new Set());
 
   // Sort
   const [sortKey, setSortKey] = useState<SortKey>('rating');
   const [showSort, setShowSort] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(20);
+
+  // Near Me
+  const [filterNearMe, setFilterNearMe] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [nearMeLoading, setNearMeLoading] = useState(false);
 
   // Animations
   const ratingAnim = useRef(new Animated.Value(0)).current;
@@ -111,11 +133,14 @@ export default function SearchScreen() {
     (async () => {
       try {
         const [restRes, cusRes] = await Promise.allSettled([
-          restaurantsApi.getAll({ city: 'თბილისი', limit: 100 }),
+          restaurantsApi.getAll({ city: 'თბილისი', limit: 2000 }),
           cuisinesApi.getAll(),
         ]);
         if (restRes.status === 'fulfilled') setRestaurants(restRes.value.data?.data || []);
-        if (cusRes.status === 'fulfilled') setCuisines(Array.isArray(cusRes.value.data) ? cusRes.value.data : []);
+        if (cusRes.status === 'fulfilled') {
+          const raw: Cuisine[] = Array.isArray(cusRes.value.data) ? cusRes.value.data : [];
+          setCuisines(raw.sort((a, b) => (a.name?.toLowerCase().includes('ქართ') ? -1 : 0) - (b.name?.toLowerCase().includes('ქართ') ? -1 : 0)));
+        }
       } catch {}
       setLoading(false);
     })();
@@ -142,7 +167,7 @@ export default function SearchScreen() {
     filterDietary.size > 0,
   ].filter(Boolean).length;
 
-  const primaryFilterCount = [filterOpen, filterRating !== null, filterDiscount].filter(Boolean).length;
+  const primaryFilterCount = [filterOpen, filterRating !== null, filterDiscount, filterNearMe].filter(Boolean).length;
   const activeFilterCount  = primaryFilterCount + secondaryFilterCount;
 
   const toggleDietary = (key: DietaryKey) => {
@@ -157,10 +182,30 @@ export default function SearchScreen() {
     setFilterOpen(false); setFilterRating(null); setShowRatingPicker(false);
     setFilterDiscount(false); setFilterCuisine(null); setFilterPrice(null);
     setFilterDietary(new Set()); setSearchQuery('');
+    setFilterNearMe(false); setSortKey('rating');
   };
 
   const clearSecondaryFilters = () => {
     setFilterCuisine(null); setFilterPrice(null); setFilterDietary(new Set());
+  };
+
+  const toggleNearMe = async () => {
+    if (filterNearMe) {
+      setFilterNearMe(false);
+      if (sortKey === 'distance') setSortKey('rating');
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setNearMeLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') { setNearMeLoading(false); return; }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setUserLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+      setFilterNearMe(true);
+      setSortKey('distance');
+    } catch {}
+    setNearMeLoading(false);
   };
 
   const filtered = restaurants.filter(r => {
@@ -181,10 +226,36 @@ export default function SearchScreen() {
   });
 
   const sorted = [...filtered].sort((a, b) => {
+    if (sortKey === 'distance' && userLocation) {
+      return distanceKm(userLocation.lat, userLocation.lng, Number(a.latitude), Number(a.longitude))
+           - distanceKm(userLocation.lat, userLocation.lng, Number(b.latitude), Number(b.longitude));
+    }
     if (sortKey === 'rating') return Number(b.ratingAvg) - Number(a.ratingAvg);
     if (sortKey === 'discount') return (getDiscount(b.id) || 0) - (getDiscount(a.id) || 0);
     return a.name.localeCompare(b.name);
   });
+
+  const displayResults = filterNearMe ? sorted.slice(0, 25) : sorted;
+  const visibleResults = displayResults.slice(0, visibleCount);
+  const hasMore = displayResults.length > visibleCount;
+
+  useEffect(() => { setVisibleCount(20); }, [searchQuery, filterRating, filterDiscount, filterOpen, filterCuisine, filterPrice, filterDietary, sortKey, filterNearMe]);
+
+  const viewOnMap = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Keyboard.dismiss();
+    navigation.navigate('Main', {
+      screen: 'Map',
+      params: {
+        cuisineId: filterCuisine ?? undefined,
+        filterOpen: filterOpen || undefined,
+        filterRating: (filterRating === 4 || filterRating === 4.5) ? filterRating : undefined,
+        sortNearest: filterNearMe || undefined,
+        userLat: userLocation?.lat,
+        userLng: userLocation?.lng,
+      },
+    });
+  };
 
   const showHistory = inputFocused && searchQuery.length === 0 && history.length > 0;
 
@@ -232,7 +303,7 @@ export default function SearchScreen() {
             </TouchableOpacity>
           </View>
           {history.map((h, i) => (
-            <TouchableOpacity key={i} style={styles.historyRow} onPress={() => { setSearchQuery(h); setInputFocused(false); }}>
+            <TouchableOpacity key={i} style={styles.historyRow} onPress={() => { setSearchQuery(h); setInputFocused(false); Keyboard.dismiss(); }}>
               <Ionicons name="time-outline" size={15} color={COLORS.textMuted} />
               <Text style={styles.historyText}>{h}</Text>
               <Ionicons name="arrow-up-outline" size={14} color={COLORS.textMuted} style={{ transform: [{ rotate: '45deg' }] }} />
@@ -244,6 +315,19 @@ export default function SearchScreen() {
       {/* ── Primary filter bar ── */}
       <View style={styles.filterBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+
+          {/* Near Me — prominent */}
+          <TouchableOpacity
+            style={[styles.chip, styles.chipNearMe, filterNearMe && styles.chipNearMeActive]}
+            onPress={toggleNearMe}
+            activeOpacity={0.8}
+          >
+            {nearMeLoading
+              ? <ActivityIndicator size="small" color={filterNearMe ? '#fff' : COLORS.primary} style={{ width: 13, height: 13 }} />
+              : <Ionicons name={filterNearMe ? 'navigate' : 'navigate-outline'} size={13} color={filterNearMe ? '#fff' : COLORS.primary} />
+            }
+            <Text style={[styles.chipText, { color: filterNearMe ? '#fff' : COLORS.primary }]}>ახლოს</Text>
+          </TouchableOpacity>
 
           {/* Open now */}
           <TouchableOpacity style={[styles.chip, filterOpen && styles.chipActive]} onPress={() => setFilterOpen(!filterOpen)}>
@@ -312,12 +396,12 @@ export default function SearchScreen() {
       {/* ── Results bar ── */}
       <View style={styles.resultsBar}>
         <Text style={styles.resultsCount}>
-          {loading ? 'იტვირთება...' : `${sorted.length} რესტორანი`}
+          {loading ? 'იტვირთება...' : `${displayResults.length} რესტორანი`}
         </Text>
         <TouchableOpacity style={styles.sortBtn} onPress={() => setShowSort(s => !s)}>
           <Ionicons name="swap-vertical-outline" size={15} color={COLORS.primary} />
           <Text style={styles.sortBtnText}>
-            {sortKey === 'rating' ? 'შეფასებით' : sortKey === 'name' ? 'სახელით' : 'ფასდაკლებით'}
+            {sortKey === 'distance' ? 'მანძილით' : sortKey === 'rating' ? 'შეფასებით' : sortKey === 'name' ? 'სახელით' : 'ფასდაკლებით'}
           </Text>
           <Ionicons name={showSort ? 'chevron-up' : 'chevron-down'} size={13} color={COLORS.primary} />
         </TouchableOpacity>
@@ -326,7 +410,10 @@ export default function SearchScreen() {
       {/* ── Sort dropdown (animated) ── */}
       {showSort && (
         <Animated.View style={[styles.sortDropdown, { opacity: sortAnim, transform: [{ translateY: sortTranslate }] }]}>
-          {([['rating', '⭐ შეფასებით'], ['name', '🔤 სახელით'], ['discount', '🏷️ ფასდაკლებით']] as [SortKey, string][]).map(([k, l]) => (
+          {([
+            ...(filterNearMe ? [['distance', '📍 მანძილით']] : []),
+            ['rating', '⭐ შეფასებით'], ['name', '🔤 სახელით'], ['discount', '🏷️ ფასდაკლებით'],
+          ] as [SortKey, string][]).map(([k, l]) => (
             <TouchableOpacity
               key={k}
               style={[styles.sortOption, sortKey === k && styles.sortOptionActive]}
@@ -346,7 +433,7 @@ export default function SearchScreen() {
         </View>
       ) : (
         <FlatList
-          data={sorted}
+          data={visibleResults}
           keyExtractor={r => r.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -370,11 +457,27 @@ export default function SearchScreen() {
           }
           renderItem={({ item, index }) => (
             <FadeInItem index={index}>
-              <SearchCard restaurant={item} navigation={navigation} />
+              <SearchCard restaurant={item} navigation={navigation} userLocation={userLocation} />
             </FadeInItem>
           )}
           ItemSeparatorComponent={() => <View style={styles.sep} />}
+          ListFooterComponent={hasMore ? (
+            <TouchableOpacity style={styles.loadMoreBtn} onPress={() => setVisibleCount(c => c + 20)}>
+              <Text style={styles.loadMoreText}>მეტის ჩვენება ({displayResults.length - visibleCount} დარჩა)</Text>
+              <Ionicons name="chevron-down" size={16} color={COLORS.primary} />
+            </TouchableOpacity>
+          ) : null}
         />
+      )}
+
+      {/* ── View on Map floating button ── */}
+      {!loading && displayResults.length > 0 && (
+        <View style={styles.mapBtnWrap} pointerEvents="box-none">
+          <TouchableOpacity style={styles.mapBtn} onPress={viewOnMap} activeOpacity={0.85}>
+            <Ionicons name="map" size={16} color={COLORS.primary} />
+            <Text style={styles.mapBtnText}>რუკაზე ნახვა · {displayResults.length}</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* ── Filter modal ── */}
@@ -490,22 +593,27 @@ export default function SearchScreen() {
   );
 }
 
-function SearchCard({ restaurant: r, navigation }: { restaurant: Restaurant; navigation: any }) {
+function SearchCard({ restaurant: r, navigation, userLocation }: { restaurant: Restaurant; navigation: any; userLocation: { lat: number; lng: number } | null }) {
   const cover = coverOf(r);
   const rating = Number(r.ratingAvg) || 0;
-  const score = (rating * 2).toFixed(1);
+  const score = rating.toFixed(1);
   const sc = scoreColor(rating);
   const discount = getDiscount(r.id);
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
   const onPressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
+  const onPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Keyboard.dismiss();
+    navigation.navigate('RestaurantDetail', { id: r.id });
+  };
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
         style={styles.card}
-        onPress={() => navigation.navigate('RestaurantDetail', { id: r.id })}
+        onPress={onPress}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
         activeOpacity={1}
@@ -514,7 +622,7 @@ function SearchCard({ restaurant: r, navigation }: { restaurant: Restaurant; nav
           {cover
             ? <Image source={{ uri: cover }} style={styles.cardImg} />
             : <View style={[styles.cardImg, styles.imgPlaceholder]}>
-                <Ionicons name="restaurant" size={36} color={COLORS.textMuted} />
+                <Ionicons name="restaurant" size={32} color={COLORS.textMuted} />
               </View>
           }
           {discount && (
@@ -523,8 +631,8 @@ function SearchCard({ restaurant: r, navigation }: { restaurant: Restaurant; nav
             </View>
           )}
           {rating > 0 && (
-            <View style={[styles.scoreCircle, { backgroundColor: sc }]}>
-              <Text style={styles.scoreCircleText}>{score}</Text>
+            <View style={[styles.scoreRect, { backgroundColor: sc }]}>
+              <Text style={styles.scoreRectText}>{score}</Text>
             </View>
           )}
         </View>
@@ -532,14 +640,6 @@ function SearchCard({ restaurant: r, navigation }: { restaurant: Restaurant; nav
         <View style={styles.cardBody}>
           <View style={styles.cardTopRow}>
             <Text style={styles.cardName} numberOfLines={1}>{r.name}</Text>
-            {r.isOpen !== undefined && (
-              <View style={[styles.openPill, r.isOpen ? styles.openOn : styles.openOff]}>
-                <View style={[styles.openDot, { backgroundColor: r.isOpen ? '#00C896' : COLORS.error }]} />
-                <Text style={[styles.openText, { color: r.isOpen ? '#00C896' : COLORS.error }]}>
-                  {r.isOpen ? 'ღია' : 'დახ.'}
-                </Text>
-              </View>
-            )}
           </View>
 
           {r.cuisine && (
@@ -549,30 +649,47 @@ function SearchCard({ restaurant: r, navigation }: { restaurant: Restaurant; nav
           )}
 
           <View style={styles.cardMeta}>
+            {r.isOpen !== undefined && (
+              <View style={[styles.openPill, r.isOpen ? styles.openOn : styles.openOff]}>
+                <View style={[styles.openDot, { backgroundColor: r.isOpen ? COLORS.scoreGood : COLORS.error }]} />
+                <Text style={[styles.openText, { color: r.isOpen ? COLORS.scoreGood : COLORS.error }]}>
+                  {r.isOpen ? 'ღია' : 'დახ.'}
+                </Text>
+              </View>
+            )}
             {rating > 0 && (
-              <>
-                <Ionicons name="star" size={12} color={COLORS.star} />
+              <View style={styles.ratingRow}>
+                <Ionicons name="star" size={11} color={COLORS.star} />
                 <Text style={styles.cardMetaText}>{rating.toFixed(1)}</Text>
-              </>
+                {r.reviewsCount !== undefined && r.reviewsCount > 0 && (
+                  <Text style={styles.cardMetaText}>({r.reviewsCount})</Text>
+                )}
+              </View>
             )}
-            {r.reviewsCount !== undefined && r.reviewsCount > 0 && (
-              <Text style={styles.cardMetaText}>· {r.reviewsCount} შეფ.</Text>
-            )}
+            {userLocation && r.latitude && r.longitude && (() => {
+              const d = distanceKm(userLocation.lat, userLocation.lng, Number(r.latitude), Number(r.longitude));
+              return (
+                <View style={styles.distancePill}>
+                  <Ionicons name="navigate" size={10} color={COLORS.primary} />
+                  <Text style={styles.distanceText}>{d < 1 ? `${Math.round(d * 1000)}მ` : `${d.toFixed(1)}კმ`}</Text>
+                </View>
+              );
+            })()}
           </View>
 
           {r.address ? (
             <View style={styles.cardAddrRow}>
-              <Ionicons name="location-outline" size={12} color={COLORS.textMuted} />
+              <Ionicons name="location-outline" size={11} color={COLORS.textMuted} />
               <Text style={styles.cardAddr} numberOfLines={1}>{r.address}</Text>
             </View>
           ) : null}
 
           <TouchableOpacity
             style={styles.bookBtn}
-            onPress={() => navigation.navigate('RestaurantDetail', { id: r.id })}
+            onPress={() => navigation.navigate('Booking', { restaurantId: r.id })}
           >
-            <Text style={styles.bookBtnText}>ჯავშნა</Text>
-            <Ionicons name="arrow-forward" size={13} color="#fff" />
+            <Ionicons name="calendar-outline" size={13} color="#fff" />
+            <Text style={styles.bookBtnText}>მაგიდის ჯავშნა</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -612,11 +729,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, height: 32, borderRadius: RADIUS.full,
     backgroundColor: COLORS.surfaceElevated, borderWidth: 1.5, borderColor: COLORS.border,
   },
-  chipActive:    { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  chipSecondary: { borderColor: COLORS.primary + '66' },
-  chipClear:     { borderColor: COLORS.error + '88' },
-  chipText:      { fontSize: 12, color: COLORS.textSecondary, fontWeight: '700' },
-  chipTextActive: { color: '#fff' },
+  chipActive:      { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  chipSecondary:   { borderColor: COLORS.primary + '66' },
+  chipClear:       { borderColor: COLORS.error + '88' },
+  chipNearMe:      { borderColor: COLORS.primary, borderWidth: 2, paddingHorizontal: 14 },
+  chipNearMeActive:{ backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  chipText:        { fontSize: 12, color: COLORS.textSecondary, fontWeight: '700' },
+  chipTextActive:  { color: '#fff' },
   dot: { width: 7, height: 7, borderRadius: 3.5 },
 
   ratingPicker: {
@@ -653,6 +772,8 @@ const styles = StyleSheet.create({
   sortOptionTextActive: { color: COLORS.primary, fontWeight: '800' },
 
   listContent: { paddingBottom: 32 },
+  loadMoreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 16, marginHorizontal: SPACING.md, marginTop: 8, backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border },
+  loadMoreText: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
   sep: { height: 8, backgroundColor: COLORS.background },
 
   emptyWrap: { alignItems: 'center', paddingVertical: 64, paddingHorizontal: SPACING.xl, gap: SPACING.md },
@@ -668,22 +789,37 @@ const styles = StyleSheet.create({
   imgPlaceholder: { backgroundColor: COLORS.surfaceElevated, alignItems: 'center', justifyContent: 'center' },
   discountBadge: { position: 'absolute', top: 6, left: 6, backgroundColor: COLORS.primary, paddingHorizontal: 7, paddingVertical: 3, borderRadius: RADIUS.sm },
   discountText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  scoreCircle: { position: 'absolute', bottom: 6, right: 6, width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  scoreCircleText: { color: '#fff', fontSize: 12, fontWeight: '900' },
-  cardBody: { flex: 1, gap: 4 },
+  scoreRect: { position: 'absolute', bottom: 6, right: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+  scoreRectText: { color: '#fff', fontSize: 12, fontWeight: '900' },
+  cardBody: { flex: 1, gap: 5 },
   cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardName: { flex: 1, fontSize: 16, fontWeight: '800', color: COLORS.text },
+  cardName: { flex: 1, fontSize: 16, fontWeight: '800', color: COLORS.text, lineHeight: 20 },
   openPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: RADIUS.full },
   openDot: { width: 5, height: 5, borderRadius: 2.5 },
-  openOn: { backgroundColor: '#00C89622' },
+  openOn: { backgroundColor: COLORS.scoreGood + '22' },
   openOff: { backgroundColor: COLORS.error + '22' },
   openText: { fontSize: 10, fontWeight: '800' },
-  cardCuisine: { fontSize: 13, color: COLORS.primary, fontWeight: '600' },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  cardCuisine: { fontSize: 12, color: COLORS.primary, fontWeight: '700' },
+  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   cardMetaText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
   cardAddrRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  cardAddr: { flex: 1, fontSize: 12, color: COLORS.textMuted },
-  bookBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 4, backgroundColor: COLORS.primary, paddingVertical: 8, borderRadius: RADIUS.md },
+  cardAddr: { flex: 1, fontSize: 11, color: COLORS.textMuted },
+  distancePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: COLORS.primary + '18', paddingHorizontal: 7, paddingVertical: 3, borderRadius: RADIUS.full },
+  distanceText: { fontSize: 10, fontWeight: '800', color: COLORS.primary },
+
+  mapBtnWrap: { position: 'absolute', bottom: 24, left: 0, right: 0, alignItems: 'center' },
+  mapBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 9,
+    backgroundColor: '#0A0E1A',
+    paddingHorizontal: 22, paddingVertical: 13,
+    borderRadius: RADIUS.full,
+    borderWidth: 1.5, borderColor: COLORS.primary,
+    elevation: 12,
+    shadowColor: COLORS.primary, shadowOpacity: 0.35, shadowOffset: { width: 0, height: 4 }, shadowRadius: 12,
+  },
+  mapBtnText: { fontSize: 14, fontWeight: '800', color: '#fff' },
+  bookBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4, backgroundColor: COLORS.primary, paddingVertical: 9, borderRadius: RADIUS.md },
   bookBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
 });
 

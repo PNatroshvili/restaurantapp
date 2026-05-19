@@ -158,9 +158,18 @@ export default function BookingScreen() {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.successBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.successBtnText}>დახურვა</Text>
-        </TouchableOpacity>
+        <View style={styles.successActions}>
+          <TouchableOpacity
+            style={styles.viewBookingsBtn}
+            onPress={() => { navigation.goBack(); (navigation as any).navigate('Main', { screen: 'Bookings' }); }}
+          >
+            <Ionicons name="list-outline" size={17} color={COLORS.primary} />
+            <Text style={styles.viewBookingsBtnText}>ჩემი ჯავშნები</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.successBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.successBtnText}>დახურვა</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -336,12 +345,14 @@ export default function BookingScreen() {
               style={styles.textarea}
               placeholder="მაგ. ვეგეტარიანული მენიუ, დაბადების დღის მაგიდა..."
               value={comment}
-              onChangeText={setComment}
+              onChangeText={v => setComment(v.slice(0, 200))}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
               placeholderTextColor={COLORS.textMuted}
+              maxLength={200}
             />
+            <Text style={styles.charCounter}>{comment.length}/200</Text>
           </View>
 
           {/* ── Summary ── */}
@@ -465,6 +476,7 @@ const styles = StyleSheet.create({
   // Comment
   commentWrap: { paddingHorizontal: SPACING.md },
   textarea: { borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, padding: SPACING.md, fontSize: 14, color: COLORS.text, height: 88, backgroundColor: COLORS.surface },
+  charCounter: { fontSize: 11, color: COLORS.textMuted, textAlign: 'right', marginTop: 4, fontWeight: '600' },
 
   // Summary card
   summaryCard: { marginHorizontal: SPACING.md, marginTop: SPACING.lg, backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: COLORS.primary + '44', padding: SPACING.md, gap: SPACING.sm },
@@ -495,6 +507,9 @@ const styles = StyleSheet.create({
   calendarBtn: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 50, backgroundColor: COLORS.surface, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.border, marginBottom: SPACING.sm },
   calendarBtnDone: { borderColor: COLORS.primary + '55', backgroundColor: COLORS.primary + '11' },
   calendarBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  successActions: { width: '100%', gap: SPACING.sm },
+  viewBookingsBtn: { width: '100%', height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.surface, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.primary + '66' },
+  viewBookingsBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.primary },
   successBtn: { width: '100%', height: 54, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center' },
   successBtnText: { fontSize: 16, fontWeight: '800', color: '#fff' },
 });

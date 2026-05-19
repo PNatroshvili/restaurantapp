@@ -12,6 +12,7 @@ import { restaurantsApi } from '../../api/restaurants';
 import { eventsApi, RestaurantEvent } from '../../api/events';
 import { COLORS, SPACING, RADIUS, DAYS_GE } from '../../constants';
 import { useRequireAuth } from '../../hooks/useRequireAuth';
+import { showToast } from '../../components/common/Toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StarRating from '../../components/common/StarRating';
 import Button from '../../components/common/Button';
@@ -43,6 +44,7 @@ export default function RestaurantDetailScreen() {
   const [activeTab, setActiveTab] = useState<'info' | 'menu' | 'reviews'>('info');
   const [photoIndex, setPhotoIndex] = useState(0);
   const [galleryVisible, setGalleryVisible] = useState(false);
+  const [activeMenuCat, setActiveMenuCat] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const tabY = useRef(0);
 
@@ -78,12 +80,15 @@ export default function RestaurantDetailScreen() {
 
   const toggleFav = () => requireAuth(async () => {
     if (!restaurant) return;
+    const prev = isFav;
+    setIsFav(!prev);
+    Haptics.impactAsync(!prev ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
     try {
-      if (isFav) await restaurantsApi.removeFavorite(restaurant.id);
-      else await restaurantsApi.addFavorite(restaurant.id);
-      setIsFav(!isFav);
-      Haptics.impactAsync(isFav ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Medium);
-    } catch {}
+      if (prev) { await restaurantsApi.removeFavorite(restaurant.id); showToast('ფავორიტებიდან წაიშალა', 'info'); }
+      else { await restaurantsApi.addFavorite(restaurant.id); showToast('ფავორიტებში დაემატა ❤️'); }
+    } catch {
+      setIsFav(prev);
+    }
   });
 
   const openMaps = () => {
@@ -98,7 +103,12 @@ export default function RestaurantDetailScreen() {
 
   const handleShare = () => {
     if (!restaurant) return;
-    Share.share({ message: `${restaurant.name}\n${restaurant.address}` });
+    const rating = Number(restaurant.ratingAvg) || 0;
+    const score = rating > 0 ? ` · ${rating.toFixed(1)}/5 ⭐` : '';
+    Share.share({
+      message: `🍽️ ${restaurant.name}${score}\n📍 ${restaurant.address}\n\nგაიცანი ეს რესტორანი GastroMap-ზე!`,
+      title: restaurant.name,
+    });
   };
 
   const switchTab = (tab: typeof activeTab) => {
@@ -114,9 +124,9 @@ export default function RestaurantDetailScreen() {
   const allPhotos = photos.length > 0 ? photos : [];
   const coverUri = restaurant.cover_photo || restaurant.coverPhoto || photos.find(p => p.isCover)?.url || photos[0]?.url;
   const rating = Number(restaurant.ratingAvg) || 0;
-  const score = (rating * 2).toFixed(1);
-  const scoreNum = parseFloat(score);
-  const scoreColor = scoreNum >= 9 ? '#00C896' : scoreNum >= 7 ? '#F59E0B' : COLORS.textSecondary;
+  const score = rating.toFixed(1);
+  const scoreNum = rating;
+  const scoreColor = scoreNum >= 4.5 ? '#00C896' : scoreNum >= 3.5 ? '#F59E0B' : COLORS.textSecondary;
   const discount = getDiscount(id);
   const today = new Date().getDay();
   const todayHours = restaurant.workingHours?.find(wh => wh.day === today);
@@ -218,7 +228,7 @@ export default function RestaurantDetailScreen() {
             {rating > 0 && (
               <View style={[styles.scoreBig, { backgroundColor: scoreColor }]}>
                 <Text style={styles.scoreBigText}>{score}</Text>
-                <Text style={styles.scoreBigLabel}>/10</Text>
+                <Text style={styles.scoreBigLabel}>/5</Text>
               </View>
             )}
           </View>
@@ -357,23 +367,44 @@ export default function RestaurantDetailScreen() {
                   <Text style={styles.emptyTitle}>მენიუ ხელმიუწვდომელია</Text>
                 </View>
               ) : (
-                menu.map(cat => (
-                  <View key={cat.id} style={styles.menuCat}>
-                    <Text style={styles.catName}>{cat.name}</Text>
-                    {cat.items?.map(item => (
-                      <View key={item.id} style={styles.menuItem}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.itemName}>{item.name}</Text>
-                          {item.description ? <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text> : null}
+                <>
+                  {menu.length > 1 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.menuCatChips}>
+                      <TouchableOpacity
+                        style={[styles.menuCatChip, activeMenuCat === null && styles.menuCatChipActive]}
+                        onPress={() => setActiveMenuCat(null)}
+                      >
+                        <Text style={[styles.menuCatChipText, activeMenuCat === null && styles.menuCatChipTextActive]}>ყველა</Text>
+                      </TouchableOpacity>
+                      {menu.map(cat => (
+                        <TouchableOpacity
+                          key={cat.id}
+                          style={[styles.menuCatChip, activeMenuCat === cat.id && styles.menuCatChipActive]}
+                          onPress={() => setActiveMenuCat(cat.id)}
+                        >
+                          <Text style={[styles.menuCatChipText, activeMenuCat === cat.id && styles.menuCatChipTextActive]}>{cat.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                  {menu.filter(cat => activeMenuCat === null || cat.id === activeMenuCat).map(cat => (
+                    <View key={cat.id} style={styles.menuCat}>
+                      <Text style={styles.catName}>{cat.name}</Text>
+                      {cat.items?.map(item => (
+                        <View key={item.id} style={styles.menuItem}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.itemName}>{item.name}</Text>
+                            {item.description ? <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text> : null}
+                          </View>
+                          {item.photoUrl && (
+                            <Image source={{ uri: item.photoUrl }} style={styles.itemImg} />
+                          )}
+                          <Text style={styles.itemPrice}>{item.price} ₾</Text>
                         </View>
-                        {item.photoUrl && (
-                          <Image source={{ uri: item.photoUrl }} style={styles.itemImg} />
-                        )}
-                        <Text style={styles.itemPrice}>{item.price} ₾</Text>
-                      </View>
-                    ))}
-                  </View>
-                ))
+                      ))}
+                    </View>
+                  ))}
+                </>
               )}
             </View>
           )}
@@ -386,7 +417,7 @@ export default function RestaurantDetailScreen() {
                 <View style={styles.reviewSummary}>
                   <View style={styles.reviewSummaryScore}>
                     <Text style={[styles.summaryScoreNum, { color: scoreColor }]}>{score}</Text>
-                    <Text style={styles.summaryScoreLabel}>/ 10</Text>
+                    <Text style={styles.summaryScoreLabel}>/ 5</Text>
                     <StarRating rating={rating} size={14} />
                     <Text style={styles.summaryReviewCount}>{reviews.length} შეფ.</Text>
                   </View>
@@ -425,7 +456,8 @@ export default function RestaurantDetailScreen() {
                 </View>
               ) : (
                 reviews.map(rev => {
-                  const revScore = (rev.rating * 2).toFixed(1);
+                  const revRating = Number(rev.rating) || 0;
+                  const revColor = revRating >= 4.5 ? '#00C896' : revRating >= 3.5 ? '#F59E0B' : COLORS.textSecondary;
                   const initial = rev.user?.name?.[0]?.toUpperCase() || '?';
                   return (
                     <View key={rev.id} style={styles.reviewCard}>
@@ -437,8 +469,9 @@ export default function RestaurantDetailScreen() {
                           <Text style={styles.reviewUser}>{rev.user?.name || 'მომხმარებელი'}</Text>
                           <Text style={styles.reviewDate}>{new Date(rev.createdAt).toLocaleDateString('ka-GE')}</Text>
                         </View>
-                        <View style={[styles.reviewScore, { backgroundColor: scoreColor + '22' }]}>
-                          <Text style={[styles.reviewScoreText, { color: scoreColor }]}>{revScore}</Text>
+                        <View style={[styles.reviewScore, { backgroundColor: revColor + '22' }]}>
+                          <Ionicons name="star" size={11} color={revColor} />
+                          <Text style={[styles.reviewScoreText, { color: revColor }]}>{revRating.toFixed(1)}</Text>
                         </View>
                       </View>
                       {rev.comment ? <Text style={styles.reviewComment}>{rev.comment}</Text> : null}
@@ -578,6 +611,11 @@ const styles = StyleSheet.create({
   eventDateText: { fontSize: 11, fontWeight: '700', color: COLORS.primary },
 
   // Menu tab
+  menuCatChips: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, gap: 8 },
+  menuCatChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: RADIUS.full, backgroundColor: COLORS.surfaceElevated, borderWidth: 1.5, borderColor: COLORS.border },
+  menuCatChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  menuCatChipText: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
+  menuCatChipTextActive: { color: '#fff' },
   menuCat: { backgroundColor: COLORS.surface, marginBottom: 8 },
   catName: { fontSize: 14, fontWeight: '800', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: SPACING.md, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.border },

@@ -10,6 +10,7 @@ import { setAuthStateGetter } from './src/api/client';
 import { registerForPushNotifications } from './src/services/notifications';
 import ErrorBoundary from './src/components/common/ErrorBoundary';
 import OfflineBanner from './src/components/common/OfflineBanner';
+import ToastContainer from './src/components/common/Toast';
 import { RootStackParamList } from './src/types';
 
 export const navigationRef = React.createRef<NavigationContainerRef<RootStackParamList>>();
@@ -37,6 +38,7 @@ function AppInner() {
       <StatusBar style="light" />
       <Navigation />
       <OfflineBanner />
+      <ToastContainer />
     </View>
   );
 }

@@ -145,7 +145,14 @@ export type RootStackParamList = {
 
 export type MainTabParamList = {
   Home: undefined;
-  Map: undefined;
+  Map: {
+    cuisineId?: string;
+    filterOpen?: boolean;
+    filterRating?: 4 | 4.5;
+    sortNearest?: boolean;
+    userLat?: number;
+    userLng?: number;
+  } | undefined;
   Bookings: undefined;
   Favorites: undefined;
   Profile: undefined;

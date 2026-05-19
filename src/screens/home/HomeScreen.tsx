@@ -16,6 +16,7 @@ import RestaurantCard from '../../components/restaurant/RestaurantCard';
 import SignatureDishCard, { GEORGIAN_DISHES, SignatureDish } from '../../components/restaurant/SignatureDishCard';
 import { SkeletonCard, SkeletonRestaurantRow } from '../../components/common/Skeleton';
 import { useAuthStore } from '../../store/authStore';
+import { getRecentlyViewed } from '../../services/recentlyViewed';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ export default function HomeScreen() {
   const [newest, setNewest] = useState<Restaurant[]>([]);
   const [nearby, setNearby] = useState<Restaurant[]>([]);
   const [cuisines, setCuisines] = useState<Cuisine[]>([]);
+  const [recentlyViewed, setRecentlyViewed] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -127,11 +129,18 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  useEffect(() => { load(); loadNearby(); }, []);
+  useEffect(() => {
+    load();
+    loadNearby();
+    getRecentlyViewed().then(setRecentlyViewed);
+  }, []);
 
   const goToSearch = (params?: any) => navigation.navigate('Search', params);
 
   const withDiscounts = popular.filter(r => getDiscount(r.id) !== null);
+  const trending = [...popular]
+    .sort((a, b) => (b.reviewsCount ?? 0) - (a.reviewsCount ?? 0))
+    .slice(0, 10);
   const topRated = georgiansFirst(
     popular.filter(r => Number(r.ratingAvg) >= 4).slice(0, 10).length > 0
       ? popular.filter(r => Number(r.ratingAvg) >= 4).slice(0, 10)
@@ -170,10 +179,10 @@ export default function HomeScreen() {
   }, [navigation]);
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 110 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
       >
 
@@ -372,6 +381,44 @@ export default function HomeScreen() {
             />
           ) : null}
         </View>
+
+        {/* ─── Trending now ────────────────────────────────────────────── */}
+        {trending.length > 0 && (
+          <View style={styles.section}>
+            <SectionTitle title="📈 ტრენდი" onSeeAll={() => goToSearch()} />
+            {loading ? (
+              <View style={{ flexDirection: 'row', paddingHorizontal: SPACING.md, gap: SPACING.md }}>
+                {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
+              </View>
+            ) : (
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={trending}
+                keyExtractor={(r) => r.id}
+                contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.md }}
+                renderItem={({ item }) => (
+                  <RestaurantCard restaurant={item} discount={getDiscount(item.id)} tag="🔥 ტრენდი" />
+                )}
+              />
+            )}
+          </View>
+        )}
+
+        {/* ─── Recently viewed ──────────────────────────────────────────── */}
+        {recentlyViewed.length > 0 && (
+          <View style={styles.section}>
+            <SectionTitle title="🕐 ახლახანს ნანახი" />
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={recentlyViewed.slice(0, 10)}
+              keyExtractor={(r) => r.id}
+              contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.md }}
+              renderItem={renderCard}
+            />
+          </View>
+        )}
 
         {/* ─── New restaurants ─────────────────────────────────────────── */}
         <View style={styles.section}>

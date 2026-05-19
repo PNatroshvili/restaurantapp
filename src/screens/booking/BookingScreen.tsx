@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView,
   Alert, KeyboardAvoidingView, Platform, Image, Animated,
@@ -52,8 +52,29 @@ export default function BookingScreen() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [calendarAdded, setCalendarAdded] = useState(false);
+  const [countdown, setCountdown] = useState('');
 
   const checkAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!success || !date || !time) return;
+    const updateCountdown = () => {
+      const [y, m, d] = date.split('-').map(Number);
+      const [h, min] = time.split(':').map(Number);
+      const bookingMs = new Date(y, m - 1, d, h, min, 0).getTime();
+      const diff = bookingMs - Date.now();
+      if (diff <= 0) { setCountdown(''); return; }
+      const days = Math.floor(diff / 86400000);
+      const hours = Math.floor((diff % 86400000) / 3600000);
+      const mins = Math.floor((diff % 3600000) / 60000);
+      if (days > 0) setCountdown(`${days} დ ${hours} სთ`);
+      else if (hours > 0) setCountdown(`${hours} სთ ${mins} წთ`);
+      else setCountdown(`${mins} წთ`);
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 60000);
+    return () => clearInterval(interval);
+  }, [success, date, time]);
 
   const applyPromo = () => {
     const upper = promoCode.trim().toUpperCase();
@@ -133,6 +154,13 @@ export default function BookingScreen() {
             </View>
           ) : null; })()}
         </View>
+
+        {countdown !== '' && (
+          <View style={styles.countdownBadge}>
+            <Ionicons name="timer-outline" size={15} color={COLORS.primary} />
+            <Text style={styles.countdownText}>{countdown}-ში</Text>
+          </View>
+        )}
 
         <View style={styles.freeCancelBadge}>
           <Ionicons name="shield-checkmark-outline" size={15} color={COLORS.primary} />
@@ -502,6 +530,8 @@ const styles = StyleSheet.create({
   successDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 4 },
   successRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   successRowText: { fontSize: 15, color: COLORS.text, fontWeight: '600' },
+  countdownBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.surfaceElevated, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 16, paddingVertical: 8, borderRadius: RADIUS.full, marginBottom: 12 },
+  countdownText: { fontSize: 14, fontWeight: '700', color: COLORS.text },
   freeCancelBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.primary + '18', paddingHorizontal: SPACING.md, paddingVertical: 8, borderRadius: RADIUS.full, marginBottom: SPACING.xl },
   freeCancelText: { fontSize: 13, color: COLORS.primary, fontWeight: '700' },
   calendarBtn: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 50, backgroundColor: COLORS.surface, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.border, marginBottom: SPACING.sm },

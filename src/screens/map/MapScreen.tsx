@@ -4,7 +4,7 @@ import {
   Animated, ScrollView, FlatList, Image, Dimensions, Modal, Switch,
   SafeAreaView as RNSafeAreaView,
 } from 'react-native';
-import MapView, { Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import Supercluster from 'supercluster';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
@@ -19,6 +19,7 @@ import { COLORS, SPACING, RADIUS } from '../../constants';
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const MAP_BLEED = 120;
 const BUBBLE_W = 52;
 const BUBBLE_H = 46;
 const CARD_W = SCREEN_W - 64;
@@ -69,13 +70,6 @@ const coverOf = (r: Restaurant) =>
 
 function regionToZoom(latDelta: number): number {
   return Math.round(Math.log2(360 / latDelta));
-}
-
-function coordToScreen(lat: number, lng: number, reg: Region): { x: number; y: number } {
-  return {
-    x: SCREEN_W / 2 + ((lng - reg.longitude) / reg.longitudeDelta) * SCREEN_W,
-    y: SCREEN_H / 2 + ((reg.latitude - lat) / reg.latitudeDelta) * SCREEN_H,
-  };
 }
 
 function regionToBBox(r: Region): [number, number, number, number] {
@@ -165,6 +159,45 @@ function MapCard({
         </View>
       </View>
     </TouchableOpacity>
+  );
+}
+
+
+// ─── Pulsing selected marker bubble ────────────────────────────────────────
+
+function MarkerBubble({ isSelected, rating, discount, sc }: {
+  isSelected: boolean; rating: number; discount: number | null; sc: string;
+}) {
+  const pulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (isSelected) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, { toValue: 1.12, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      pulse.stopAnimation();
+      pulse.setValue(1);
+    }
+  }, [isSelected]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.bubble,
+        isSelected && styles.bubbleSelected,
+        { borderColor: isSelected ? '#F97316' : sc },
+        isSelected && { transform: [{ scale: pulse }] },
+      ]}
+    >
+      <Text style={[styles.bubbleRating, discount === null && styles.bubbleRatingLarge]}>
+        {rating > 0 ? rating.toFixed(1) : '–'}
+      </Text>
+      {discount !== null && <Text style={styles.bubbleDiscount}>-{discount}%</Text>}
+    </Animated.View>
   );
 }
 
@@ -337,7 +370,10 @@ export default function MapScreen() {
   const listRef = useRef<FlatList>(null);
   const regionDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchHereAnim = useRef(new Animated.Value(0)).current;
+  const bottomBarAnim = useRef(new Animated.Value(0)).current;
+  const bottomBarShown = useRef(false);
   const suppressSearchHere = useRef(false);
+  const suppressCardScroll = useRef(false);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
 
@@ -356,11 +392,9 @@ export default function MapScreen() {
   // Location
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [region, setRegion] = useState<Region>(TBILISI);
-  const [liveRegion, setLiveRegion] = useState<Region>(TBILISI);
-  const liveRegionRef = useRef<Region>(TBILISI);
-  const rafPending = useRef(false);
   const [showSearchHere, setShowSearchHere] = useState(false);
   const [areaFilter, setAreaFilter] = useState<Region | null>(null);
+  const initialZoomDone = useRef(false);
 
   // ── Apply incoming params from Search screen ──────────────────────────
   useEffect(() => {
@@ -380,7 +414,7 @@ export default function MapScreen() {
   useEffect(() => {
     (async () => {
       try {
-        await Location.requestForegroundPermissionsAsync();
+        const { status } = await Location.requestForegroundPermissionsAsync();
         const [restRes, cusRes] = await Promise.allSettled([
           restaurantsApi.getAll({ city: 'თბილისი', limit: 2000 }),
           cuisinesApi.getAll(),
@@ -393,6 +427,21 @@ export default function MapScreen() {
             const bGeo = b.name?.toLowerCase().includes('ქართ') ? -1 : 0;
             return aGeo - bGeo;
           }));
+        }
+        if (status === 'granted' && !initialZoomDone.current) {
+          try {
+            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const { latitude, longitude } = pos.coords;
+            setUserLocation({ lat: latitude, lng: longitude });
+            initialZoomDone.current = true;
+            suppressSearchHere.current = true;
+            setTimeout(() => {
+              mapRef.current?.animateToRegion(
+                { latitude, longitude, latitudeDelta: 0.09, longitudeDelta: 0.09 },
+                800,
+              );
+            }, 300);
+          } catch {}
         }
       } catch {}
       setLoading(false);
@@ -486,6 +535,7 @@ export default function MapScreen() {
     setShowSearchHere(false);
     const idx = sortedFiltered.findIndex(x => x.id === r.id);
     if (idx >= 0) {
+      suppressCardScroll.current = true;
       setTimeout(() => {
         listRef.current?.scrollToOffset({ offset: idx * (CARD_W + CARD_GAP), animated: true });
       }, 80);
@@ -493,6 +543,7 @@ export default function MapScreen() {
   }, [sortedFiltered]);
 
   const onCardScrollEnd = useCallback((e: any) => {
+    if (suppressCardScroll.current) { suppressCardScroll.current = false; return; }
     const idx = Math.round(e.nativeEvent.contentOffset.x / (CARD_W + CARD_GAP));
     const r = sortedFiltered[Math.max(0, Math.min(idx, sortedFiltered.length - 1))];
     if (!r) return;
@@ -538,20 +589,8 @@ export default function MapScreen() {
     );
   }, [scIndex]);
 
-  const onRegionChange = useCallback((r: Region) => {
-    liveRegionRef.current = r;
-    if (!rafPending.current) {
-      rafPending.current = true;
-      requestAnimationFrame(() => {
-        setLiveRegion({ ...liveRegionRef.current });
-        rafPending.current = false;
-      });
-    }
-  }, []);
-
   const onRegionChangeComplete = useCallback((r: Region) => {
-    liveRegionRef.current = r;
-    setLiveRegion(r);
+    Haptics.selectionAsync();
     if (regionDebounce.current) clearTimeout(regionDebounce.current);
     regionDebounce.current = setTimeout(() => {
       setRegion(r);
@@ -571,6 +610,26 @@ export default function MapScreen() {
     setFilterOpen(false); setFilterRating(null); setFilterCuisines([]);
     setSortNearest(false); setAreaFilter(null); setShowSearchHere(false);
   };
+
+  // ── Card entrance animation ───────────────────────────────────────────
+  useEffect(() => {
+    if (!loading && sortedFiltered.length > 0 && !bottomBarShown.current) {
+      bottomBarShown.current = true;
+      Animated.spring(bottomBarAnim, { toValue: 1, useNativeDriver: true, speed: 14, bounciness: 5 }).start();
+    }
+  }, [loading, sortedFiltered.length]);
+
+  const surpriseMe = useCallback(() => {
+    if (sortedFiltered.length === 0) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const r = sortedFiltered[Math.floor(Math.random() * sortedFiltered.length)];
+    selectRestaurant(r);
+    suppressSearchHere.current = true;
+    mapRef.current?.animateToRegion(
+      { latitude: Number(r.latitude), longitude: Number(r.longitude), latitudeDelta: 0.008, longitudeDelta: 0.008 },
+      500,
+    );
+  }, [sortedFiltered, selectRestaurant]);
 
   const routeCoords = useMemo(() => {
     if (!selected || !userLocation) return null;
@@ -595,7 +654,6 @@ export default function MapScreen() {
         showsBuildings={false}
         showsTraffic={false}
         onPress={() => { setShowSearchHere(false); }}
-        onRegionChange={onRegionChange}
         onRegionChangeComplete={onRegionChangeComplete}
       >
         {routeCoords && (
@@ -606,64 +664,42 @@ export default function MapScreen() {
             lineDashPattern={[8, 6]}
           />
         )}
-      </MapView>
-
-      {/* ── MARKER OVERLAY — rendered outside MapView, never clipped ── */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         {clusters.map(feature => {
           const [lng, lat] = feature.geometry.coordinates;
-          const pos = coordToScreen(lat, lng, liveRegion);
-          const isCluster = feature.properties.cluster === true;
-
-          if (isCluster) {
+          if ((feature.properties as any).cluster === true) {
             const { cluster_id, point_count } = feature.properties as any;
-            const size = point_count >= 50 ? 62 : 50;
             return (
-              <TouchableOpacity
+              <Marker
                 key={`cluster-${cluster_id}`}
+                coordinate={{ latitude: lat, longitude: lng }}
+                anchor={{ x: 0.5, y: 0.5 }}
                 onPress={() => handleClusterPress(cluster_id, lat, lng)}
-                activeOpacity={0.8}
-                style={[
-                  styles.clusterWrap,
-                  point_count >= 50 && styles.clusterWrapLarge,
-                  { position: 'absolute', left: pos.x - size / 2, top: pos.y - size / 2 },
-                ]}
               >
-                <Text style={styles.clusterCount}>{point_count}</Text>
-                <Text style={styles.clusterLabel}>ადგილი</Text>
-              </TouchableOpacity>
+                <View style={[styles.clusterWrap, point_count >= 50 && styles.clusterWrapLarge]}>
+                  <Text style={styles.clusterCount}>{point_count}</Text>
+                  <Text style={styles.clusterLabel}>ადგილი</Text>
+                </View>
+              </Marker>
             );
           }
-
           const r = (feature.properties as any).restaurant as Restaurant;
           const isSelected = selected?.id === r.id;
           const rating = Number(r.ratingAvg);
           const discount = getDiscount(r.id);
           const sc = scoreColor(rating);
-
           return (
-            <TouchableOpacity
+            <Marker
               key={r.id}
+              coordinate={{ latitude: lat, longitude: lng }}
+              anchor={{ x: 0.5, y: 1 }}
+              tracksViewChanges={isSelected}
               onPress={() => selectRestaurant(r)}
-              activeOpacity={0.85}
-              style={{ position: 'absolute', left: pos.x - BUBBLE_W / 2, top: pos.y - BUBBLE_H }}
             >
-              <View style={[
-                styles.bubble,
-                isSelected && styles.bubbleSelected,
-                { borderColor: isSelected ? '#F97316' : sc },
-              ]}>
-                <Text style={[styles.bubbleRating, discount === null && styles.bubbleRatingLarge]}>
-                  {rating > 0 ? rating.toFixed(1) : '–'}
-                </Text>
-                {discount !== null && (
-                  <Text style={styles.bubbleDiscount}>-{discount}%</Text>
-                )}
-              </View>
-            </TouchableOpacity>
+              <MarkerBubble isSelected={isSelected} rating={rating} discount={discount} sc={sc} />
+            </Marker>
           );
         })}
-      </View>
+      </MapView>
 
       {loading && (
         <View style={styles.loadingOverlay}>
@@ -697,6 +733,15 @@ export default function MapScreen() {
                 <Text style={styles.filterCountText}>{activeFilterCount}</Text>
               </View>
             )}
+          </TouchableOpacity>
+
+          {/* Open Now — quick toggle */}
+          <TouchableOpacity
+            style={[styles.chip, filterOpen && styles.chipActive]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilterOpen(s => !s); }}
+          >
+            <View style={[styles.dot, { backgroundColor: filterOpen ? '#fff' : '#22C55E' }]} />
+            <Text style={[styles.chipText, filterOpen && styles.chipTextActive]}>ღია</Text>
           </TouchableOpacity>
 
           {/* Near Me — quick toggle */}
@@ -734,11 +779,16 @@ export default function MapScreen() {
             <Ionicons name="restaurant-outline" size={12} color={COLORS.primary} />
             <Text style={styles.countText}>{sortedFiltered.length} რესტორანი</Text>
           </View>
-          <TouchableOpacity style={styles.locBtn} onPress={goToMyLocation}>
-            {locating
-              ? <ActivityIndicator size="small" color={COLORS.primary} />
-              : <Ionicons name="navigate-outline" size={18} color={COLORS.primary} />}
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={styles.surpriseBtn} onPress={surpriseMe}>
+              <Text style={styles.surpriseBtnText}>🎲 გაგიკვირდება</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.locBtn} onPress={goToMyLocation}>
+              {locating
+                ? <ActivityIndicator size="small" color={COLORS.primary} />
+                : <Ionicons name="navigate-outline" size={18} color={COLORS.primary} />}
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
 
@@ -770,7 +820,10 @@ export default function MapScreen() {
 
       {/* ── BOTTOM SWIPEABLE CARDS ── */}
       {!loading && sortedFiltered.length > 0 && (
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 8 }]}>
+        <Animated.View style={[styles.bottomBar, { paddingBottom: insets.bottom + 8 }, {
+          opacity: bottomBarAnim,
+          transform: [{ translateY: bottomBarAnim.interpolate({ inputRange: [0, 1], outputRange: [60, 0] }) }],
+        }]}>
           <FlatList
             ref={listRef}
             data={sortedFiltered}
@@ -796,7 +849,7 @@ export default function MapScreen() {
               />
             )}
           />
-        </View>
+        </Animated.View>
       )}
 
       {/* ── FILTER MODAL ── */}
@@ -818,7 +871,13 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
-  map: { flex: 1 },
+  map: {
+    position: 'absolute',
+    top: -MAP_BLEED,
+    left: -MAP_BLEED,
+    right: -MAP_BLEED,
+    bottom: -MAP_BLEED,
+  },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
@@ -874,8 +933,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceElevated, borderWidth: 1, borderColor: COLORS.border,
     alignItems: 'center', justifyContent: 'center',
   },
+  surpriseBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, height: 36, borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surfaceElevated, borderWidth: 1.5, borderColor: COLORS.border,
+  },
+  surpriseBtnText: { fontSize: 12, color: COLORS.text, fontWeight: '700' },
 
-  // ── Bubble markers (rendered outside MapView — no viewport clipping) ────
+  // ── Bubble markers ───────────────────────────────────────────────────────
   bubble: {
     width: BUBBLE_W,
     height: BUBBLE_H,

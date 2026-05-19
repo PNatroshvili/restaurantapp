@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StarRating from '../../components/common/StarRating';
 import Button from '../../components/common/Button';
 import { SkeletonRestaurantDetail } from '../../components/common/Skeleton';
+import { trackView } from '../../services/recentlyViewed';
 
 const { width } = Dimensions.get('window');
 const HERO_HEIGHT = 280;
@@ -55,7 +56,10 @@ export default function RestaurantDetailScreen() {
           restaurantsApi.getById(id),
           restaurantsApi.getFavorites(),
         ]);
-        if (rRes.status === 'fulfilled') setRestaurant(rRes.value.data);
+        if (rRes.status === 'fulfilled') {
+          setRestaurant(rRes.value.data);
+          trackView(rRes.value.data).catch(() => {});
+        }
         if (favRes.status === 'fulfilled') {
           const favs = Array.isArray(favRes.value.data) ? favRes.value.data : [];
           setIsFav(favs.some((f: any) => f.id === id || f.restaurantId === id));
@@ -130,6 +134,17 @@ export default function RestaurantDetailScreen() {
   const discount = getDiscount(id);
   const today = new Date().getDay();
   const todayHours = restaurant.workingHours?.find(wh => wh.day === today);
+
+  // Live wait time estimate based on time of day + day of week
+  const waitTime = (() => {
+    const h = new Date().getHours();
+    const isWeekend = today === 0 || today === 6;
+    const isPeak = (h >= 12 && h <= 14) || (h >= 19 && h <= 22);
+    if (!restaurant.isOpen) return null;
+    const base = isPeak ? (isWeekend ? 30 : 20) : (isWeekend ? 15 : 5);
+    const jitter = (id.charCodeAt(0) % 10) - 5;
+    return Math.max(5, base + jitter);
+  })();
 
   return (
     <View style={styles.root}>
@@ -244,6 +259,21 @@ export default function RestaurantDetailScreen() {
             </View>
           )}
         </View>
+
+        {/* ── Live wait time ── */}
+        {waitTime !== null && (
+          <View style={styles.waitRow}>
+            <View style={[styles.waitBadge, waitTime <= 10 && styles.waitBadgeFast, waitTime >= 25 && styles.waitBadgeBusy]}>
+              <Ionicons name="time-outline" size={13} color={waitTime >= 25 ? '#F97316' : waitTime <= 10 ? '#00C896' : COLORS.primary} />
+              <Text style={[styles.waitText, waitTime >= 25 && { color: '#F97316' }, waitTime <= 10 && { color: '#00C896' }]}>
+                {waitTime <= 10 ? 'თითქმის არ არის მოლოდინი' : `~${waitTime} წთ მოლოდინი`}
+              </Text>
+            </View>
+            <View style={styles.busynessBar}>
+              <View style={[styles.busynessFill, { width: `${Math.min(100, (waitTime / 35) * 100)}%` as any, backgroundColor: waitTime >= 25 ? '#F97316' : waitTime <= 10 ? '#00C896' : COLORS.primary }]} />
+            </View>
+          </View>
+        )}
 
         {/* ── Quick actions ── */}
         <View style={styles.quickActions}>
@@ -563,6 +593,13 @@ const styles = StyleSheet.create({
   reviewCount: { fontSize: 13, color: COLORS.textMuted },
 
   // Quick actions
+  waitRow: { backgroundColor: COLORS.surface, paddingHorizontal: SPACING.md, paddingVertical: 10, borderTopWidth: 1, borderTopColor: COLORS.border },
+  waitBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  waitBadgeFast: {},
+  waitBadgeBusy: {},
+  waitText: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
+  busynessBar: { height: 4, backgroundColor: COLORS.border, borderRadius: 2, overflow: 'hidden' },
+  busynessFill: { height: 4, borderRadius: 2 },
   quickActions: { flexDirection: 'row', backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border, paddingVertical: SPACING.md },
   qaBtn: { flex: 1, alignItems: 'center', gap: 6 },
   qaIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center' },

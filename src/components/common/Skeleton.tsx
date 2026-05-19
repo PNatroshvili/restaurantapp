@@ -27,8 +27,8 @@ export default function Skeleton({ width = '100%', height = 16, borderRadius = R
     <View style={[{ width: width as any, height, borderRadius, backgroundColor: COLORS.surfaceElevated, overflow: 'hidden' }, style]}>
       <Animated.View
         style={{
-          position: 'absolute', top: 0, bottom: 0, width: 140,
-          backgroundColor: 'rgba(255,255,255,0.055)',
+          position: 'absolute', top: 0, bottom: 0, width: 180,
+          backgroundColor: 'rgba(255,255,255,0.08)',
           transform: [{ translateX: shimmerX }],
         }}
       />
@@ -39,13 +39,14 @@ export default function Skeleton({ width = '100%', height = 16, borderRadius = R
 export function SkeletonCard({ fullWidth }: { fullWidth?: boolean }) {
   return (
     <View style={[cardStyles.wrap, fullWidth && { width: '100%' }]}>
-      <Skeleton height={180} borderRadius={0} />
-      <View style={cardStyles.body}>
-        <Skeleton height={18} width="70%" style={{ marginBottom: 8 }} />
-        <Skeleton height={13} width="40%" style={{ marginBottom: 12 }} />
+      <View style={StyleSheet.absoluteFill}>
+        <Skeleton height={258} borderRadius={0} />
+      </View>
+      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 12, gap: 7 }}>
+        <Skeleton height={16} width="75%" borderRadius={6} />
         <View style={cardStyles.row}>
-          <Skeleton height={13} width="30%" />
-          <Skeleton height={13} width="25%" />
+          <Skeleton height={12} width="35%" borderRadius={6} />
+          <Skeleton height={12} width="25%" borderRadius={6} />
         </View>
       </View>
     </View>
@@ -140,7 +141,7 @@ const detailStyles = StyleSheet.create({
 });
 
 const cardStyles = StyleSheet.create({
-  wrap: { width: 200, backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
+  wrap: { width: 205, height: 258, backgroundColor: COLORS.surfaceElevated, borderRadius: RADIUS.xl, overflow: 'hidden' },
   body: { padding: 12 },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
 });

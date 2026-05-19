@@ -14,7 +14,7 @@ import { RootStackParamList } from '../../types';
 
 type RouteProps = RouteProp<RootStackParamList, 'Chat'>;
 
-const SOCKET_URL = 'https://restaurant-backend-bm4s.onrender.com';
+const SOCKET_URL = 'https://api.skup.ge';
 
 export default function ChatScreen() {
   const navigation = useNavigation();

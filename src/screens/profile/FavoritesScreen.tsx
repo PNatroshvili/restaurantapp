@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Image, Alert, RefreshControl,
+  TouchableOpacity, Image, RefreshControl,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import { useAuthStore } from '../../store/authStore';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import Button from '../../components/common/Button';
 import { SkeletonCard } from '../../components/common/Skeleton';
+import ConfirmModal from '../../components/common/ConfirmModal';
 
 const getDiscount = (id: string): number | null => {
   const pool = [null, null, null, 10, null, 20, null, null, 30, null, 15, null, null, 25, null];
@@ -23,10 +24,8 @@ const getDiscount = (id: string): number | null => {
 const coverOf = (r: Restaurant) =>
   r.cover_photo || r.coverPhoto || r.photos?.find(p => p.isCover)?.url || r.photos?.[0]?.url;
 
-const scoreColor = (rating: number) => {
-  const s = rating * 2;
-  return s >= 9 ? '#00C896' : s >= 7 ? '#F59E0B' : COLORS.textMuted;
-};
+const scoreColor = (rating: number) =>
+  rating >= 4.5 ? COLORS.scoreGood : rating >= 3.5 ? COLORS.scoreMid : COLORS.textMuted;
 
 export default function FavoritesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -35,6 +34,7 @@ export default function FavoritesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<Restaurant | null>(null);
 
   const loadFavorites = useCallback((isRefresh = false) => {
     if (!isAuthenticated) { setLoading(false); return; }
@@ -49,23 +49,23 @@ export default function FavoritesScreen() {
 
   const removeFavorite = (r: Restaurant) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('წაშლა', `გსურთ "${r.name}" ფავორიტებიდან წაშლა?`, [
-      { text: 'გაუქმება', style: 'cancel' },
-      {
-        text: 'წაშლა', style: 'destructive', onPress: async () => {
-          setRemoving(r.id);
-          try {
-            await restaurantsApi.removeFavorite(r.id);
-            setFavorites(prev => prev.filter(f => f.id !== r.id));
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          } catch {
-            Alert.alert('შეცდომა', 'წაშლა ვერ მოხერხდა');
-          } finally {
-            setRemoving(null);
-          }
-        },
-      },
-    ]);
+    setConfirmTarget(r);
+  };
+
+  const doRemove = async () => {
+    if (!confirmTarget) return;
+    const r = confirmTarget;
+    setConfirmTarget(null);
+    setRemoving(r.id);
+    try {
+      await restaurantsApi.removeFavorite(r.id);
+      setFavorites(prev => prev.filter(f => f.id !== r.id));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      // silent — toast could be added here
+    } finally {
+      setRemoving(null);
+    }
   };
 
   if (!isAuthenticated) {
@@ -88,6 +88,16 @@ export default function FavoritesScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <ConfirmModal
+        visible={!!confirmTarget}
+        title="ფავორიტებიდან წაშლა"
+        message={confirmTarget ? `გსურთ "${confirmTarget.name}" ფავორიტებიდან წაშლა?` : ''}
+        confirmLabel="წაშლა"
+        destructive
+        icon="heart-dislike-outline"
+        onConfirm={doRemove}
+        onCancel={() => setConfirmTarget(null)}
+      />
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>ფავორიტები</Text>
@@ -140,7 +150,7 @@ export default function FavoritesScreen() {
           renderItem={({ item: r }) => {
             const cover = coverOf(r);
             const rating = Number(r.ratingAvg) || 0;
-            const score = (rating * 2).toFixed(1);
+            const score = rating.toFixed(1);
             const sc = scoreColor(rating);
             const discount = getDiscount(r.id);
             const isRemoving = removing === r.id;

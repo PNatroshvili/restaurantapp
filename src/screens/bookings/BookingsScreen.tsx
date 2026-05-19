@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, RefreshControl, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
+import * as Calendar from 'expo-calendar';
+import * as Notifications from 'expo-notifications';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../../store/authStore';
 import { bookingsApi } from '../../api/bookings';
@@ -15,8 +17,67 @@ import Button from '../../components/common/Button';
 import { SkeletonRestaurantRow } from '../../components/common/Skeleton';
 import ReviewPromptModal from '../../components/common/ReviewPromptModal';
 import QRModal from '../../components/common/QRModal';
+import ConfirmModal from '../../components/common/ConfirmModal';
 
 const SOCKET_URL = 'http://localhost:3000';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
+async function sendBookingNotification(title: string, body: string) {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') {
+      const { status: asked } = await Notifications.requestPermissionsAsync();
+      if (asked !== 'granted') return;
+    }
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body, sound: true },
+      trigger: null,
+    });
+  } catch {
+    // notifications not critical — silent fail
+  }
+}
+
+async function saveBookingToCalendar(booking: Booking) {
+  try {
+    const { status } = await Calendar.requestCalendarPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('', 'კალენდარზე წვდომა გჭირდებათ');
+      return;
+    }
+
+    const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+    const writable = calendars.find(c => c.allowsModifications);
+    if (!writable) { Alert.alert('', 'კალენდარი ვერ მოიძებნა'); return; }
+
+    // Parse date "YYYY-MM-DD" and time "HH:MM"
+    const [y, mo, d] = (booking.date ?? '').split('-').map(Number);
+    const [h, m] = (booking.time ?? '00:00').split(':').map(Number);
+    const start = new Date(y, mo - 1, d, h, m);
+    const end   = new Date(start.getTime() + 2 * 60 * 60 * 1000); // assume 2 h
+
+    await Calendar.createEventAsync(writable.id, {
+      title: `🍽️ ${booking.restaurant?.name ?? 'რესტორანი'}`,
+      location: booking.restaurant?.address ?? '',
+      startDate: start,
+      endDate: end,
+      notes: `სტუმრები: ${booking.guestsCount}`,
+      timeZone: 'Asia/Tbilisi',
+    });
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('✅', 'კალენდარში დაემატა');
+  } catch {
+    Alert.alert('შეცდომა', 'კალენდარში ვერ დაემატა');
+  }
+}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
   pending:   { label: 'მოლოდინში',      color: COLORS.warning,  icon: 'time-outline' },
@@ -34,6 +95,7 @@ export default function BookingsScreen() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled'>('all');
   const [reviewBooking, setReviewBooking] = useState<Booking | null>(null);
   const [qrBooking, setQrBooking] = useState<Booking | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
@@ -47,6 +109,15 @@ export default function BookingsScreen() {
         const existing = prev.find(b => b.id === updated.id);
         if (existing && existing.status === 'pending' && updated.status === 'confirmed') {
           setReviewBooking(updated);
+          sendBookingNotification(
+            '✅ ჯავშანი დადასტურდა',
+            `${updated.restaurant?.name ?? 'რესტორანი'} — ${updated.date} ${updated.time}`,
+          );
+        } else if (existing && existing.status === 'pending' && updated.status === 'rejected') {
+          sendBookingNotification(
+            '❌ ჯავშანი უარყოფილია',
+            `${updated.restaurant?.name ?? 'რესტორანი'} — ${updated.date} ${updated.time}`,
+          );
         }
         return prev.map(b => b.id === updated.id ? { ...b, ...updated } : b);
       });
@@ -70,7 +141,7 @@ export default function BookingsScreen() {
         return data;
       });
     } catch {
-      Alert.alert('შეცდომა', 'ჯავშნები ვერ ჩაიტვირთა');
+      // silent — pull-to-refresh retry available
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -85,22 +156,22 @@ export default function BookingsScreen() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [isAuthenticated]));
 
-  const cancel = async (id: string) => {
+  const cancel = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('გაუქმება', 'ნამდვილად გსურთ ჯავშნის გაუქმება?', [
-      { text: 'არა', style: 'cancel' },
-      {
-        text: 'გაუქმება', style: 'destructive', onPress: async () => {
-          try {
-            await bookingsApi.cancel(id);
-            setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'cancelled' } : b));
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          } catch {
-            Alert.alert('შეცდომა', 'გაუქმება ვერ მოხერხდა');
-          }
-        },
-      },
-    ]);
+    setCancelTarget(id);
+  };
+
+  const doCancel = async () => {
+    if (!cancelTarget) return;
+    const id = cancelTarget;
+    setCancelTarget(null);
+    try {
+      await bookingsApi.cancel(id);
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'cancelled' } : b));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      // silent
+    }
   };
 
   if (!isAuthenticated) {
@@ -129,6 +200,16 @@ export default function BookingsScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <ConfirmModal
+        visible={!!cancelTarget}
+        title="ჯავშნის გაუქმება"
+        message="ნამდვილად გსურთ ამ ჯავშნის გაუქმება?"
+        confirmLabel="გაუქმება"
+        destructive
+        icon="calendar-clear-outline"
+        onConfirm={doCancel}
+        onCancel={() => setCancelTarget(null)}
+      />
       <QRModal
         visible={!!qrBooking}
         bookingId={qrBooking?.id ?? ''}
@@ -184,9 +265,19 @@ export default function BookingsScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Ionicons name="calendar-outline" size={48} color={COLORS.textMuted} />
-              <Text style={styles.emptyTitle}>ჯავშნები არ მოიძებნა</Text>
-              <Text style={styles.emptySub}>ახალი ჯავშნის გასაკეთებლად ეწვიეთ რესტორნის გვერდს</Text>
+              <Text style={styles.emptyEmoji}>🍽️</Text>
+              <Text style={styles.emptyTitle}>
+                {filter === 'all' ? 'ჯავშნები არ გაქვთ' : 'ამ კატეგორიაში ჯავშნი არ მოიძებნა'}
+              </Text>
+              <Text style={styles.emptySub}>
+                {filter === 'all' ? 'დაჯავშნეთ თქვენი პირველი მაგიდა თბილისის საუკეთესო რესტორნებში' : 'სხვა ფილტრი სცადეთ'}
+              </Text>
+              {filter === 'all' && (
+                <TouchableOpacity style={styles.exploreBtn} onPress={() => navigation.navigate('Main', { screen: 'Home' } as any)}>
+                  <Ionicons name="search-outline" size={16} color="#fff" />
+                  <Text style={styles.exploreBtnText}>რესტორნების ძიება</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
           renderItem={({ item: b }) => {
@@ -238,19 +329,38 @@ export default function BookingsScreen() {
                 </View>
 
                 {b.status === 'confirmed' && (
-                  <View style={styles.actionBtnsRow}>
-                    <TouchableOpacity style={[styles.qrBtn, { flex: 1 }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setQrBooking(b); }}>
-                      <Ionicons name="qr-code-outline" size={16} color={COLORS.primary} />
-                      <Text style={styles.qrBtnText}>QR Check-in</Text>
+                  <>
+                    <View style={styles.actionBtnsRow}>
+                      <TouchableOpacity style={[styles.qrBtn, { flex: 1 }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setQrBooking(b); }}>
+                        <Ionicons name="qr-code-outline" size={16} color={COLORS.primary} />
+                        <Text style={styles.qrBtnText}>QR Check-in</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.chatBtn} onPress={() => navigation.navigate('Chat', { bookingId: b.id, restaurantName: b.restaurant?.name ?? 'რესტორანი' })}>
+                        <Ionicons name="chatbubble-outline" size={16} color={COLORS.primary} />
+                      </TouchableOpacity>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.calendarBtn}
+                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); saveBookingToCalendar(b); }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="calendar-outline" size={15} color={COLORS.textSecondary} />
+                      <Text style={styles.calendarBtnText}>კალენდარში დამატება</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.chatBtn]} onPress={() => navigation.navigate('Chat', { bookingId: b.id, restaurantName: b.restaurant?.name ?? 'რესტორანი' })}>
-                      <Ionicons name="chatbubble-outline" size={16} color={COLORS.primary} />
-                    </TouchableOpacity>
-                  </View>
+                  </>
                 )}
                 {b.status === 'pending' && (
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => cancel(b.id)}>
                     <Text style={styles.cancelText}>ჯავშნის გაუქმება</Text>
+                  </TouchableOpacity>
+                )}
+                {(b.status === 'cancelled' || b.status === 'rejected') && b.restaurant?.id && (
+                  <TouchableOpacity
+                    style={styles.bookAgainBtn}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); navigation.navigate('Booking', { restaurantId: b.restaurant!.id, restaurantName: b.restaurant!.name ?? 'რესტორანი' }); }}
+                  >
+                    <Ionicons name="refresh-outline" size={15} color={COLORS.primary} />
+                    <Text style={styles.bookAgainText}>ხელახლა ჯავშნა</Text>
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
@@ -299,7 +409,16 @@ const styles = StyleSheet.create({
   qrBtnText: { fontSize: 14, color: COLORS.primary, fontWeight: '700' },
   chatBtn: { borderLeftWidth: 1, borderLeftColor: COLORS.border, paddingHorizontal: SPACING.md, alignItems: 'center', justifyContent: 'center' },
 
-  emptyWrap: { alignItems: 'center', paddingTop: 60, gap: SPACING.md },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+  bookAgainBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderTopWidth: 1, borderTopColor: COLORS.border, padding: SPACING.md },
+  bookAgainText: { fontSize: 14, color: COLORS.primary, fontWeight: '700' },
+
+  calendarBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderTopWidth: 1, borderTopColor: COLORS.border, paddingVertical: 10 },
+  calendarBtnText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
+
+  emptyWrap: { alignItems: 'center', paddingTop: 60, paddingHorizontal: SPACING.xl, gap: SPACING.md },
+  emptyEmoji: { fontSize: 64, marginBottom: SPACING.sm },
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text, textAlign: 'center' },
   emptySub: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
+  exploreBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.primary, paddingHorizontal: SPACING.lg, paddingVertical: 12, borderRadius: RADIUS.full, marginTop: SPACING.sm },
+  exploreBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 });

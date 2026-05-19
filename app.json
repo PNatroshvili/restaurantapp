@@ -2,7 +2,7 @@
   "expo": {
     "name": "RestaurantApp",
     "slug": "RestaurantApp",
-    "version": "1.3.0",
+    "version": "1.3.4",
     "scheme": "ge.skup.restaurants",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -34,7 +34,9 @@
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
       ]
     },
     "web": {
@@ -45,6 +47,11 @@
       "expo-font",
       "expo-calendar",
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9bfba874-3860-4ac9-83a8-daf341734077"
+      }
+    }
   }
 }

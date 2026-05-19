@@ -65,18 +65,25 @@ const TAB_CONFIG: { name: keyof MainTabParamList; label: string; icon: string; i
 
 function AnimatedTabButton({ focused, label, icon, iconFocused, onPress, onLongPress }: any) {
   const scale = useRef(new Animated.Value(1)).current;
-  const bg = useRef(new Animated.Value(0)).current;
+  const pillOpacity = useRef(new Animated.Value(focused ? 1 : 0)).current;
+  const pillWidth = useRef(new Animated.Value(focused ? 64 : 40)).current;
 
-  const handlePressIn = () => {
-    Animated.spring(scale, { toValue: 0.9, useNativeDriver: true, speed: 80, bounciness: 0 }).start();
-    Animated.timing(bg, { toValue: 1, duration: 100, useNativeDriver: false }).start();
-  };
-  const handlePressOut = () => {
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 4 }).start();
-    Animated.timing(bg, { toValue: 0, duration: 180, useNativeDriver: false }).start();
-  };
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(pillOpacity, { toValue: focused ? 1 : 0, useNativeDriver: false, speed: 18, bounciness: 0 }),
+      Animated.spring(pillWidth, { toValue: focused ? 64 : 40, useNativeDriver: false, speed: 18, bounciness: 0 }),
+    ]).start();
+  }, [focused]);
 
-  const bgColor = bg.interpolate({ inputRange: [0, 1], outputRange: ['rgba(0,182,122,0)', 'rgba(0,182,122,0.14)'] });
+  const handlePressIn = () =>
+    Animated.spring(scale, { toValue: 0.88, useNativeDriver: true, speed: 80, bounciness: 0 }).start();
+  const handlePressOut = () =>
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 5 }).start();
+
+  const pillBg = pillOpacity.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(0,182,122,0)', 'rgba(0,182,122,0.18)'],
+  });
 
   return (
     <TouchableOpacity
@@ -87,29 +94,32 @@ function AnimatedTabButton({ focused, label, icon, iconFocused, onPress, onLongP
       activeOpacity={1}
       style={tabStyles.btn}
     >
-      {/* JS-driver view: background only, no transform */}
-      <Animated.View style={[tabStyles.inner, { backgroundColor: bgColor, borderRadius: 12 }]}>
-        {/* Native-driver view: scale only, no background */}
-        <Animated.View style={{ alignItems: 'center', transform: [{ scale }] }}>
+      <Animated.View style={{ alignItems: 'center', transform: [{ scale }] }}>
+        {/* Pill indicator — grows wider when focused */}
+        <Animated.View style={[tabStyles.pill, { backgroundColor: pillBg, width: pillWidth }]}>
           <Ionicons
             name={(focused ? iconFocused : icon) as any}
-            size={24}
+            size={22}
             color={focused ? COLORS.primary : COLORS.textSecondary}
           />
-          <Text style={[tabStyles.label, focused && tabStyles.labelActive]}>{label}</Text>
-          {focused && <View style={tabStyles.dot} />}
         </Animated.View>
+        <Text style={[tabStyles.label, focused && tabStyles.labelActive]}>{label}</Text>
       </Animated.View>
     </TouchableOpacity>
   );
 }
 
 const tabStyles = StyleSheet.create({
-  btn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  inner: { alignItems: 'center', justifyContent: 'center', paddingVertical: 6, paddingHorizontal: 8, gap: 3, minWidth: 56, borderRadius: 12 },
-  label: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
+  btn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 4 },
+  pill: {
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 3,
+  },
+  label: { fontSize: 10, color: COLORS.textMuted, fontWeight: '600' },
   labelActive: { color: COLORS.primary, fontWeight: '800' },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: COLORS.primary, marginTop: 1 },
 });
 
 function MainTabs() {

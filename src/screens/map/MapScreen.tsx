@@ -45,6 +45,24 @@ const getDiscount = (id: string): number | null => {
 const coverOf = (r: Restaurant) =>
   r.cover_photo || r.coverPhoto || r.photos?.find(p => p.isCover)?.url || r.photos?.[0]?.url || null;
 
+// Haversine great-circle distance in metres
+function distanceMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6_371_000; // Earth radius in metres
+  const toRad = (d: number) => d * (Math.PI / 180);
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(metres: number): string {
+  if (metres < 1000) return `${Math.round(metres)} მ`;
+  const km = metres / 1000;
+  return km < 10 ? `${km.toFixed(1)} კმ` : `${Math.round(km)} კმ`;
+}
+
 // ─── MapCard ───────────────────────────────────────────────────────────────
 
 function MapCard({
@@ -53,12 +71,14 @@ function MapCard({
   onSelect,
   onBook,
   navigation,
+  distance,
 }: {
   restaurant: Restaurant;
   isSelected: boolean;
   onSelect: () => void;
   onBook: () => void;
   navigation: NativeStackNavigationProp<RootStackParamList>;
+  distance: number | null;
 }) {
   const cover = coverOf(r);
   const rating = Number(r.ratingAvg);
@@ -97,6 +117,14 @@ function MapCard({
           {r.cuisine?.name || ''}
           {r.district ? ` · ${r.district}` : r.address ? ` · ${r.address.split(',')[0]}` : ''}
         </Text>
+
+        {/* Distance from user */}
+        {distance !== null && (
+          <View style={styles.cardDistRow}>
+            <Ionicons name="navigate-outline" size={11} color={COLORS.primary} />
+            <Text style={styles.cardDistText}>{formatDistance(distance)}</Text>
+          </View>
+        )}
 
         {/* Discount badge */}
         {discount !== null && (
@@ -712,15 +740,24 @@ export default function MapScreen() {
             onScrollToIndexFailed={({ index }) => {
               listRef.current?.scrollToOffset({ offset: index * (CARD_W + CARD_GAP), animated: false });
             }}
-            renderItem={({ item }) => (
-              <MapCard
-                restaurant={item}
-                isSelected={selected?.id === item.id}
-                onSelect={() => selectRestaurant(item)}
-                onBook={() => handleBook(item)}
-                navigation={navigation}
-              />
-            )}
+            renderItem={({ item }) => {
+              const dist = userLocation
+                ? distanceMetres(
+                    userLocation.lat, userLocation.lng,
+                    Number(item.latitude), Number(item.longitude),
+                  )
+                : null;
+              return (
+                <MapCard
+                  restaurant={item}
+                  isSelected={selected?.id === item.id}
+                  onSelect={() => selectRestaurant(item)}
+                  onBook={() => handleBook(item)}
+                  navigation={navigation}
+                  distance={dist}
+                />
+              );
+            }}
           />
         </Animated.View>
       )}
@@ -859,6 +896,8 @@ const styles = StyleSheet.create({
   },
   cardRatingText: { color: '#fff', fontSize: 13, fontWeight: '900' },
   cardMeta: { fontSize: 11.5, color: COLORS.textSecondary, fontWeight: '500' },
+  cardDistRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  cardDistText: { fontSize: 11.5, color: COLORS.primary, fontWeight: '700' },
   cardDiscountBadge: {
     alignSelf: 'flex-start',
     backgroundColor: COLORS.primary + '22',

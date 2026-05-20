@@ -36,7 +36,8 @@
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_CALENDAR",
-        "android.permission.WRITE_CALENDAR"
+        "android.permission.WRITE_CALENDAR",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {
@@ -46,7 +47,8 @@
       "expo-secure-store",
       "expo-font",
       "expo-calendar",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-notifications"
     ],
     "extra": {
       "eas": {

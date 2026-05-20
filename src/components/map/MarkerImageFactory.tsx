@@ -14,8 +14,10 @@ const R_STROKE_S  = '#FFB020';
 // ── Cluster SVG geometry ─────────────────────────────────────────────────────
 const C_W = 88;
 const C_H = 78;
-const C_FILL   = '#00C896';
-const C_STROKE = 'rgba(255,255,255,0.25)';
+const C_FILL   = '#063F38';
+const C_STROKE = '#1FCFA0';
+const C_TEXT   = '#EFFFF9';
+const C_GLOW   = 'rgba(31, 207, 160, 0.28)';
 
 const WHITE = '#FFFFFF';
 
@@ -89,14 +91,16 @@ function ClusterCapture({
 
   return (
     <Svg ref={ref} width={C_W} height={C_H} viewBox={`0 0 ${C_W} ${C_H}`}>
+      {/* Soft glow — slightly larger rect behind the bubble */}
+      <Rect x={13} y={4} width={62} height={50} rx={16} fill={C_GLOW} />
       <Rect x={17} y={8} width={54} height={42} rx={12}
-        fill={C_FILL} stroke={C_STROKE} strokeWidth={2} />
+        fill={C_FILL} stroke={C_STROKE} strokeWidth={1.5} />
       <Polygon points="34,50 54,50 44,62"
         fill={C_FILL} stroke={C_FILL} strokeWidth={1} />
       {/* Seam cover */}
       <Rect x={34} y={49} width={20} height={3} fill={C_FILL} />
       <SvgText x={44} y={34} fontSize={16} fontWeight="900"
-        fill={WHITE} textAnchor="middle">
+        fill={C_TEXT} textAnchor="middle">
         {count}
       </SvgText>
     </Svg>

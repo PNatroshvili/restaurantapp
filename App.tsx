@@ -35,12 +35,13 @@ function AppInner() {
   });
 
   const loadFromStorage = useAuthStore((s) => s.loadFromStorage);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const responseListener = useRef<Notifications.EventSubscription>();
 
+  // Boot: load persisted auth tokens first
   useEffect(() => {
     setAuthStateGetter(() => useAuthStore.getState());
     loadFromStorage();
-    registerForPushNotifications().catch(() => {});
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data as any;
@@ -51,6 +52,14 @@ function AppInner() {
 
     return () => { responseListener.current?.remove(); };
   }, []);
+
+  // Register push token only after user is authenticated (covers both
+  // returning users and fresh logins — runs whenever isAuthenticated flips to true)
+  useEffect(() => {
+    if (isAuthenticated) {
+      registerForPushNotifications().catch(() => {});
+    }
+  }, [isAuthenticated]);
   if (!fontsLoaded) return null;
 
   return (

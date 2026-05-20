@@ -1,13 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, Image, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, Dimensions, FlatList, Modal, Linking, Share,
+  ActivityIndicator, Alert, Dimensions, FlatList, Modal, Linking, Share, Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Restaurant, MenuCategory, Review, RootStackParamList } from '../../types';
+import ScoreBadge from '../../components/common/ScoreBadge';
 import { restaurantsApi } from '../../api/restaurants';
 import { eventsApi, RestaurantEvent } from '../../api/events';
 import { COLORS, SPACING, RADIUS, DAYS_GE } from '../../constants';
@@ -47,6 +49,7 @@ export default function RestaurantDetailScreen() {
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [activeMenuCat, setActiveMenuCat] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
   const tabY = useRef(0);
 
   useEffect(() => {
@@ -151,7 +154,17 @@ export default function RestaurantDetailScreen() {
       {/* Drag handle */}
       <View style={styles.handle}><View style={styles.handleBar} /></View>
 
-      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} bounces={false} stickyHeaderIndices={[5]}>
+      <Animated.ScrollView
+        ref={scrollRef as any}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        stickyHeaderIndices={[5]}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true },
+        )}
+        scrollEventThrottle={16}
+      >
 
         {/* ── Hero ── */}
         <View style={{ height: HERO_HEIGHT }}>
@@ -175,8 +188,19 @@ export default function RestaurantDetailScreen() {
               </View>
             </>
           ) : coverUri ? (
-            <TouchableOpacity activeOpacity={0.95} onPress={() => setGalleryVisible(true)}>
-              <Image source={{ uri: coverUri }} style={styles.heroImg} />
+            <TouchableOpacity activeOpacity={0.95} onPress={() => setGalleryVisible(true)} style={{ overflow: 'hidden', height: HERO_HEIGHT }}>
+              <Animated.Image
+                source={{ uri: coverUri }}
+                style={[
+                  styles.heroImg,
+                  { height: HERO_HEIGHT + 80 },
+                  { transform: [{ translateY: scrollY.interpolate({
+                      inputRange: [0, HERO_HEIGHT],
+                      outputRange: [0, 36],
+                      extrapolate: 'clamp',
+                    }) }] },
+                ]}
+              />
             </TouchableOpacity>
           ) : (
             <View style={[styles.heroImg, styles.heroPlaceholder]}>
@@ -184,9 +208,18 @@ export default function RestaurantDetailScreen() {
             </View>
           )}
 
-          {/* Top + bottom shadow overlays */}
-          <View style={styles.heroGradientTop} pointerEvents="none" />
-          <View style={styles.heroGradientBottom} pointerEvents="none" />
+          {/* Top shadow — back button readability */}
+          <LinearGradient
+            colors={['rgba(0,0,0,0.52)', 'transparent']}
+            style={styles.heroGradientTop}
+            pointerEvents="none"
+          />
+          {/* Bottom shadow — bleeds into content below */}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.68)']}
+            style={styles.heroGradientBottom}
+            pointerEvents="none"
+          />
 
           {/* Discount banner */}
           {discount && (
@@ -240,12 +273,7 @@ export default function RestaurantDetailScreen() {
                 )}
               </View>
             </View>
-            {rating > 0 && (
-              <View style={[styles.scoreBig, { backgroundColor: scoreColor }]}>
-                <Text style={styles.scoreBigText}>{score}</Text>
-                <Text style={styles.scoreBigLabel}>/5</Text>
-              </View>
-            )}
+            {rating > 0 && <ScoreBadge rating={rating} size="lg" />}
           </View>
 
           {/* Stars + reviews */}
@@ -512,7 +540,7 @@ export default function RestaurantDetailScreen() {
             </View>
           )}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* ── Footer CTA ── */}
       <View style={[styles.footer, { paddingBottom: insets.bottom || SPACING.md }]}>
@@ -558,8 +586,8 @@ const styles = StyleSheet.create({
   handleBar: { width: 36, height: 4, borderRadius: 2, backgroundColor: COLORS.border },
 
   // Hero
-  heroGradientTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 80, backgroundColor: 'rgba(0,0,0,0.35)' },
-  heroGradientBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 80, backgroundColor: 'rgba(0,0,0,0.5)' },
+  heroGradientTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 110 },
+  heroGradientBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 100 },
   heroImg: { width, height: HERO_HEIGHT },
   heroPlaceholder: { backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
   dotRow: { position: 'absolute', bottom: 14, alignSelf: 'center', flexDirection: 'row', gap: 5 },

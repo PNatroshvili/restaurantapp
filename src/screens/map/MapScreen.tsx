@@ -4,8 +4,8 @@ import {
   Animated, ScrollView, FlatList, Image, Dimensions, Modal, Switch,
   SafeAreaView as RNSafeAreaView,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
-import Supercluster from 'supercluster';
+import MapView, { Region } from 'react-native-maps';
+import RestaurantMap from '../../components/map/RestaurantMap';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,18 +14,15 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Restaurant, Cuisine, RootStackParamList, MainTabParamList } from '../../types';
 import { restaurantsApi, cuisinesApi } from '../../api/restaurants';
-import { COLORS, SPACING, RADIUS } from '../../constants';
+import { COLORS, FONTS, SPACING, RADIUS } from '../../constants';
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const MAP_BLEED = 120;
-const BUBBLE_W = 52;
-const BUBBLE_H = 46;
+const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = SCREEN_W - 64;
 const CARD_GAP = 16;
 const CARD_H = 152;
-const BOTTOM_BAR_H = CARD_H + 28; // card + top padding
+const BOTTOM_BAR_H = CARD_H + 28;
 
 const TBILISI: Region = { latitude: 41.6938, longitude: 44.8015, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 
@@ -34,26 +31,6 @@ const CUISINE_ICONS: Record<string, string> = {
   'Fast Food': '🍔', 'Seafood': '🦞', 'Vegetarian': '🥗', 'Steakhouse': '🥩',
   'Coffee': '☕', 'Bakery': '🥐', 'Mexican': '🌮', 'Indian': '🍛',
 };
-
-const DARK_MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#0A0E1A' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#8A9BBE' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0A0E1A' }] },
-  { featureType: 'administrative', elementType: 'geometry', stylers: [{ visibility: 'off' }] },
-  { featureType: 'administrative.country', elementType: 'labels.text.fill', stylers: [{ color: '#4A5A7A' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#8A9BBE' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#0D1520' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#111929' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1E2D3D' }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#4A5A7A' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#16213A' }] },
-  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1E2D3D' }] },
-  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#6A7A9A' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#060C16' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3A4A5A' }] },
-];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -67,19 +44,6 @@ const getDiscount = (id: string): number | null => {
 
 const coverOf = (r: Restaurant) =>
   r.cover_photo || r.coverPhoto || r.photos?.find(p => p.isCover)?.url || r.photos?.[0]?.url || null;
-
-function regionToZoom(latDelta: number): number {
-  return Math.round(Math.log2(360 / latDelta));
-}
-
-function regionToBBox(r: Region): [number, number, number, number] {
-  return [
-    r.longitude - r.longitudeDelta / 2,
-    r.latitude - r.latitudeDelta / 2,
-    r.longitude + r.longitudeDelta / 2,
-    r.latitude + r.latitudeDelta / 2,
-  ];
-}
 
 // ─── MapCard ───────────────────────────────────────────────────────────────
 
@@ -162,44 +126,6 @@ function MapCard({
   );
 }
 
-
-// ─── Pulsing selected marker bubble ────────────────────────────────────────
-
-function MarkerBubble({ isSelected, rating, discount, sc }: {
-  isSelected: boolean; rating: number; discount: number | null; sc: string;
-}) {
-  const pulse = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (isSelected) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulse, { toValue: 1.12, duration: 600, useNativeDriver: true }),
-          Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: true }),
-        ])
-      ).start();
-    } else {
-      pulse.stopAnimation();
-      pulse.setValue(1);
-    }
-  }, [isSelected]);
-
-  return (
-    <Animated.View
-      style={[
-        styles.bubble,
-        isSelected && styles.bubbleSelected,
-        { borderColor: isSelected ? '#F97316' : sc },
-        isSelected && { transform: [{ scale: pulse }] },
-      ]}
-    >
-      <Text style={[styles.bubbleRating, discount === null && styles.bubbleRatingLarge]}>
-        {rating > 0 ? rating.toFixed(1) : '–'}
-      </Text>
-      {discount !== null && <Text style={styles.bubbleDiscount}>-{discount}%</Text>}
-    </Animated.View>
-  );
-}
 
 // ─── Filter Modal ──────────────────────────────────────────────────────────
 
@@ -368,7 +294,6 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
   const listRef = useRef<FlatList>(null);
-  const regionDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchHereAnim = useRef(new Animated.Value(0)).current;
   const bottomBarAnim = useRef(new Animated.Value(0)).current;
   const bottomBarShown = useRef(false);
@@ -392,6 +317,7 @@ export default function MapScreen() {
   // Location
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [region, setRegion] = useState<Region>(TBILISI);
+  const [startRegion, setStartRegion] = useState<Region | null>(null);
   const [showSearchHere, setShowSearchHere] = useState(false);
   const [areaFilter, setAreaFilter] = useState<Region | null>(null);
   const initialZoomDone = useRef(false);
@@ -410,11 +336,58 @@ export default function MapScreen() {
     }
   }, [route.params]);
 
-  // ── Load data ──────────────────────────────────────────────────────────
+  // ── Resolve initial map region (runs before map renders) ──────────────
+  // Uses last known position (instant cache read) so the map opens already
+  // centered on the user's nearby area with no Tbilisi→user animation.
   useEffect(() => {
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const last = await Location.getLastKnownPositionAsync();
+          if (last) {
+            const { latitude, longitude } = last.coords;
+            setUserLocation({ lat: latitude, lng: longitude });
+            initialZoomDone.current = true;
+            setStartRegion({ latitude, longitude, latitudeDelta: 0.05, longitudeDelta: 0.05 });
+            return;
+          }
+        }
+      } catch {}
+      // No cached position — fall back to city view
+      setStartRegion(TBILISI);
+    })();
+  }, []);
+
+  // ── Get accurate GPS fix ───────────────────────────────────────────────
+  // Updates userLocation for routing/sorting. If no last-known position was
+  // available (map started at Tbilisi), also zooms to user location.
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const { latitude, longitude } = pos.coords;
+        setUserLocation({ lat: latitude, lng: longitude });
+        if (!initialZoomDone.current) {
+          initialZoomDone.current = true;
+          suppressSearchHere.current = true;
+          setTimeout(() => {
+            mapRef.current?.animateToRegion(
+              { latitude, longitude, latitudeDelta: 0.05, longitudeDelta: 0.05 },
+              700,
+            );
+          }, 300);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  // ── Load data ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
         const [restRes, cusRes] = await Promise.allSettled([
           restaurantsApi.getAll({ city: 'თბილისი', limit: 2000 }),
           cuisinesApi.getAll(),
@@ -427,21 +400,6 @@ export default function MapScreen() {
             const bGeo = b.name?.toLowerCase().includes('ქართ') ? -1 : 0;
             return aGeo - bGeo;
           }));
-        }
-        if (status === 'granted' && !initialZoomDone.current) {
-          try {
-            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            const { latitude, longitude } = pos.coords;
-            setUserLocation({ lat: latitude, lng: longitude });
-            initialZoomDone.current = true;
-            suppressSearchHere.current = true;
-            setTimeout(() => {
-              mapRef.current?.animateToRegion(
-                { latitude, longitude, latitudeDelta: 0.09, longitudeDelta: 0.09 },
-                800,
-              );
-            }, 300);
-          } catch {}
         }
       } catch {}
       setLoading(false);
@@ -509,23 +467,6 @@ export default function MapScreen() {
 
   useEffect(() => { if (!sortNearest) fittedRef.current = false; }, [sortNearest]);
 
-  // ── Supercluster ──────────────────────────────────────────────────────
-  const scIndex = useMemo(() => {
-    const index = new Supercluster<{ restaurant: Restaurant }>({ radius: 48, maxZoom: 17 });
-    index.load(sortedFiltered.map(r => ({
-      type: 'Feature' as const,
-      geometry: { type: 'Point' as const, coordinates: [Number(r.longitude), Number(r.latitude)] },
-      properties: { restaurant: r },
-    })));
-    return index;
-  }, [sortedFiltered]);
-
-  const clusters = useMemo(
-    () => scIndex.getClusters(regionToBBox(region), regionToZoom(region.latitudeDelta)),
-    [scIndex, region],
-  );
-
-
   const activeFilterCount = [filterOpen, filterRating !== null, filterCuisines.length > 0, sortNearest, areaFilter !== null].filter(Boolean).length;
 
   // ── Handlers ──────────────────────────────────────────────────────────
@@ -578,25 +519,11 @@ export default function MapScreen() {
     setLocating(false);
   }, []);
 
-  const handleClusterPress = useCallback((clusterId: number, lat: number, lng: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const expansionZoom = Math.min(scIndex.getClusterExpansionZoom(clusterId), 17);
-    const newDelta = 360 / Math.pow(2, expansionZoom);
-    suppressSearchHere.current = true;
-    mapRef.current?.animateToRegion(
-      { latitude: lat, longitude: lng, latitudeDelta: newDelta, longitudeDelta: newDelta },
-      350,
-    );
-  }, [scIndex]);
-
-  const onRegionChangeComplete = useCallback((r: Region) => {
+  const onMapRegionChange = useCallback((r: Region) => {
     Haptics.selectionAsync();
-    if (regionDebounce.current) clearTimeout(regionDebounce.current);
-    regionDebounce.current = setTimeout(() => {
-      setRegion(r);
-      if (!suppressSearchHere.current) setShowSearchHere(true);
-      suppressSearchHere.current = false;
-    }, 200);
+    setRegion(r);
+    if (!suppressSearchHere.current) setShowSearchHere(true);
+    suppressSearchHere.current = false;
   }, []);
 
   const searchThisArea = useCallback(() => {
@@ -631,77 +558,23 @@ export default function MapScreen() {
     );
   }, [sortedFiltered, selectRestaurant]);
 
-  const routeCoords = useMemo(() => {
-    if (!selected || !userLocation) return null;
-    return [
-      { latitude: userLocation.lat, longitude: userLocation.lng },
-      { latitude: Number(selected.latitude), longitude: Number(selected.longitude) },
-    ];
-  }, [selected, userLocation]);
-
   // ── Render ──────────────────────────────────────────────────────────────
   return (
     <View style={styles.root}>
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        style={styles.map}
-        initialRegion={TBILISI}
-        customMapStyle={DARK_MAP_STYLE}
-        showsUserLocation
-        showsMyLocationButton={false}
-        showsCompass={false}
-        showsBuildings={false}
-        showsTraffic={false}
-        onPress={() => { setShowSearchHere(false); }}
-        onRegionChangeComplete={onRegionChangeComplete}
-      >
-        {routeCoords && (
-          <Polyline
-            coordinates={routeCoords}
-            strokeColor={COLORS.primary + 'AA'}
-            strokeWidth={2}
-            lineDashPattern={[8, 6]}
-          />
-        )}
-        {clusters.map(feature => {
-          const [lng, lat] = feature.geometry.coordinates;
-          if ((feature.properties as any).cluster === true) {
-            const { cluster_id, point_count } = feature.properties as any;
-            return (
-              <Marker
-                key={`cluster-${cluster_id}`}
-                coordinate={{ latitude: lat, longitude: lng }}
-                anchor={{ x: 0.5, y: 0.5 }}
-                onPress={() => handleClusterPress(cluster_id, lat, lng)}
-              >
-                <View style={[styles.clusterWrap, point_count >= 50 && styles.clusterWrapLarge]}>
-                  <Text style={styles.clusterCount}>{point_count}</Text>
-                  <Text style={styles.clusterLabel}>ადგილი</Text>
-                </View>
-              </Marker>
-            );
-          }
-          const r = (feature.properties as any).restaurant as Restaurant;
-          const isSelected = selected?.id === r.id;
-          const rating = Number(r.ratingAvg);
-          const discount = getDiscount(r.id);
-          const sc = scoreColor(rating);
-          return (
-            <Marker
-              key={r.id}
-              coordinate={{ latitude: lat, longitude: lng }}
-              anchor={{ x: 0.5, y: 1 }}
-              tracksViewChanges={isSelected}
-              onPress={() => selectRestaurant(r)}
-            >
-              <MarkerBubble isSelected={isSelected} rating={rating} discount={discount} sc={sc} />
-            </Marker>
-          );
-        })}
-      </MapView>
+      {startRegion && (
+        <RestaurantMap
+          mapRef={mapRef}
+          restaurants={sortedFiltered}
+          selectedRestaurantId={selected?.id ?? null}
+          onRestaurantPress={selectRestaurant}
+          initialRegion={startRegion}
+          userLocation={userLocation}
+          onRegionChangeComplete={onMapRegionChange}
+          onPress={() => setShowSearchHere(false)}
+        />
+      )}
 
-      {loading && (
+      {(loading || !startRegion) && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator color={COLORS.primary} size="large" />
         </View>
@@ -871,13 +744,6 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
-  map: {
-    position: 'absolute',
-    top: -MAP_BLEED,
-    left: -MAP_BLEED,
-    right: -MAP_BLEED,
-    bottom: -MAP_BLEED,
-  },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
@@ -939,32 +805,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceElevated, borderWidth: 1.5, borderColor: COLORS.border,
   },
   surpriseBtnText: { fontSize: 12, color: COLORS.text, fontWeight: '700' },
-
-  // ── Bubble markers ───────────────────────────────────────────────────────
-  bubble: {
-    width: BUBBLE_W,
-    height: BUBBLE_H,
-    backgroundColor: COLORS.surface,
-    borderWidth: 2,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bubbleSelected: { borderColor: '#F97316', borderWidth: 2.5 },
-  bubbleRating: { fontSize: 13, fontWeight: '900', color: COLORS.text, lineHeight: 16 },
-  bubbleRatingLarge: { fontSize: 16, lineHeight: 20 },
-  bubbleDiscount: { fontSize: 9, fontWeight: '800', color: COLORS.primary, lineHeight: 12, marginTop: 1 },
-
-  // ── Cluster markers ──────────────────────────────────────────────────────
-  clusterWrap: {
-    width: 50, height: 50, borderRadius: 25,
-    backgroundColor: COLORS.primary,
-    borderWidth: 3, borderColor: COLORS.surface,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  clusterWrapLarge: { width: 62, height: 62, borderRadius: 31 },
-  clusterCount: { fontSize: 15, fontWeight: '900', color: '#fff', lineHeight: 17 },
-  clusterLabel: { fontSize: 7, fontWeight: '700', color: 'rgba(255,255,255,0.8)', lineHeight: 9 },
 
   // ── Search this area ────────────────────────────────────────────────────
   searchHereWrap: {

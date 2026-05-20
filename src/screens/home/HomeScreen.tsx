@@ -11,7 +11,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { Restaurant, Cuisine, RootStackParamList } from '../../types';
 import { restaurantsApi, cuisinesApi } from '../../api/restaurants';
-import { COLORS, SPACING, RADIUS } from '../../constants';
+import { COLORS, FONTS, SPACING, RADIUS } from '../../constants';
 import RestaurantCard from '../../components/restaurant/RestaurantCard';
 import SignatureDishCard, { GEORGIAN_DISHES, SignatureDish } from '../../components/restaurant/SignatureDishCard';
 import { SkeletonCard, SkeletonRestaurantRow } from '../../components/common/Skeleton';
@@ -84,6 +84,16 @@ export default function HomeScreen() {
   const [guests, setGuests] = useState(2);
 
   const greeting = getTimeGreeting();
+  const pageAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(pageAnim, {
+      toValue: 1,
+      duration: 380,
+      useNativeDriver: true,
+      easing: Easing.out(Easing.cubic),
+    }).start();
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -209,6 +219,12 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* ─── Content fade-in (everything below the header) ──────────── */}
+        <Animated.View style={{
+          opacity: pageAnim,
+          transform: [{ translateY: pageAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+        }}>
+
         {/* ─── Greeting + Search ───────────────────────────────────────── */}
         <View style={styles.greetSection}>
           <Text style={styles.greetTitle}>{greeting.emoji} {greeting.title}</Text>
@@ -287,9 +303,15 @@ export default function HomeScreen() {
             title="ახლომახლო"
             left={<RadarDot />}
             right={
-              <TouchableOpacity onPress={loadNearby} style={styles.refreshBtn}>
-                <Ionicons name="navigate-outline" size={13} color={COLORS.primary} />
-                <Text style={styles.refreshBtnText}>განახლება</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  navigation.navigate('Main', { screen: 'Map' } as any);
+                }}
+                style={styles.refreshBtn}
+              >
+                <Ionicons name="map-outline" size={13} color={COLORS.primary} />
+                <Text style={styles.refreshBtnText}>რუქაზე ნახვა</Text>
               </TouchableOpacity>
             }
           />
@@ -363,25 +385,6 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* ─── Special offers ──────────────────────────────────────────── */}
-        <View style={styles.section}>
-          <SectionTitle title="🔥 სპეციალური შეთავაზებები" onSeeAll={() => goToSearch()} />
-          {loading ? (
-            <View style={{ flexDirection: 'row', paddingHorizontal: SPACING.md, gap: SPACING.md }}>
-              {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
-            </View>
-          ) : withDiscounts.length > 0 ? (
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={withDiscounts.slice(0, 8)}
-              keyExtractor={(r) => r.id}
-              contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.md }}
-              renderItem={renderCard}
-            />
-          ) : null}
-        </View>
-
         {/* ─── Trending now ────────────────────────────────────────────── */}
         {trending.length > 0 && (
           <View style={styles.section}>
@@ -435,6 +438,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -516,7 +520,7 @@ function SectionTitle({ title, onSeeAll, right, left }: { title: string; onSeeAl
 
 const sTitle = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.md, marginBottom: SPACING.sm },
-  text: { fontSize: 17, fontWeight: '800', color: COLORS.text },
+  text: { fontSize: 17, fontFamily: FONTS.extraBold, color: COLORS.text },
   seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   seeAllText: { fontSize: 13, color: COLORS.primary, fontWeight: '600' },
 });
@@ -560,8 +564,8 @@ const styles = StyleSheet.create({
 
   // Greeting
   greetSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: SPACING.xs },
-  greetTitle: { fontSize: 22, fontWeight: '900', color: COLORS.text, letterSpacing: -0.3 },
-  greetSub: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2, fontWeight: '500' },
+  greetTitle: { fontSize: 22, fontFamily: FONTS.black, color: COLORS.text, letterSpacing: -0.3 },
+  greetSub: { fontSize: 13, fontFamily: FONTS.medium, color: COLORS.textSecondary, marginTop: 2 },
 
   // Search
   searchBar: {

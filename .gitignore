@@ -48,3 +48,11 @@ android/app/release.keystore
 android/app/debug.keystore
 android/local.properties
 android/.idea/
+
+# Sensitive / generated
+keystore_base64.txt
+tmp_b64.txt
+build-log.txt
+desktop.ini
+*.pdf
+.idea/

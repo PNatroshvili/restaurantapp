@@ -1,12 +1,14 @@
 import React, { useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Linking } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { Restaurant, RootStackParamList } from '../../types';
-import { COLORS, RADIUS, SPACING } from '../../constants';
+import { COLORS, FONTS, RADIUS, SPACING } from '../../constants';
+import ScoreBadge from '../common/ScoreBadge';
 
 interface Props {
   restaurant: Restaurant;
@@ -101,11 +103,7 @@ export default function RestaurantCard({ restaurant, horizontal = false, discoun
           </View>
 
           <View style={styles.rightColH}>
-            {rating > 0 && (
-              <View style={[styles.scorePillH, { borderColor: scoreColor + '55' }]}>
-                <Text style={[styles.scoreNumH, { color: scoreColor }]}>{score}</Text>
-              </View>
-            )}
+            {rating > 0 && <ScoreBadge rating={rating} size="sm" />}
             {restaurant.phone && (
               <TouchableOpacity style={styles.callBtnH} onPress={call} activeOpacity={0.75}>
                 <Ionicons name="call" size={13} color={COLORS.primary} />
@@ -141,12 +139,13 @@ export default function RestaurantCard({ restaurant, horizontal = false, discoun
           </View>
         )}
 
-        {/* Bottom gradient overlay — 10 strips simulating a smooth gradient */}
-        <View style={styles.gradient} pointerEvents="none">
-          {[0, 0.04, 0.1, 0.18, 0.28, 0.4, 0.54, 0.68, 0.8, 0.9].map((opacity, i) => (
-            <View key={i} style={{ flex: 1, backgroundColor: `rgba(0,0,0,${opacity})` }} />
-          ))}
-        </View>
+        {/* True smooth gradient over photo */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.72)', 'rgba(0,0,0,0.92)']}
+          locations={[0, 0.35, 0.72, 1]}
+          style={styles.gradient}
+          pointerEvents="none"
+        />
 
         {/* Top-left badges */}
         <View style={styles.topLeft}>
@@ -164,8 +163,8 @@ export default function RestaurantCard({ restaurant, horizontal = false, discoun
 
         {/* Score badge — top right */}
         {rating > 0 && (
-          <View style={[styles.scoreBadge, { backgroundColor: scoreColor }]}>
-            <Text style={styles.scoreText}>{score}</Text>
+          <View style={styles.scoreBadgePos}>
+            <ScoreBadge rating={rating} size="md" />
           </View>
         )}
 
@@ -218,7 +217,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 170,
+    height: 190,
   },
   topLeft: {
     position: 'absolute',
@@ -243,15 +242,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.18)',
   },
   tagText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  scoreBadge: {
+  scoreBadgePos: {
     position: 'absolute',
     top: SPACING.sm,
     right: SPACING.sm,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: RADIUS.md,
   },
-  scoreText: { color: '#fff', fontSize: 13, fontWeight: '900' },
   bottomContent: {
     position: 'absolute',
     bottom: 0,
@@ -262,7 +257,7 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 15,
-    fontWeight: '800',
+    fontFamily: FONTS.extraBold,
     color: '#fff',
     marginBottom: 7,
     textShadowColor: 'rgba(0,0,0,0.4)',
@@ -306,11 +301,11 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
     overflow: 'hidden',
     flexDirection: 'row',
-    height: 90,
+    height: 110,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  imgWrapH: { width: 90, position: 'relative' },
+  imgWrapH: { width: 110, position: 'relative' },
   imgH: { width: '100%', height: '100%' },
   imgPlaceholder: {
     backgroundColor: COLORS.surfaceElevated,
@@ -334,8 +329,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 3,
   },
-  nameH: { fontSize: 14, fontWeight: '800', color: COLORS.text },
-  cuisineH: { fontSize: 11, color: COLORS.textSecondary },
+  nameH: { fontSize: 14, fontFamily: FONTS.extraBold, color: COLORS.text },
+  cuisineH: { fontSize: 11, fontFamily: FONTS.medium, color: COLORS.textSecondary },
   metaRowH: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusTextH: { fontSize: 11, fontWeight: '700' },
@@ -355,7 +350,7 @@ const styles = StyleSheet.create({
     minWidth: 38,
     alignItems: 'center',
   },
-  scoreNumH: { fontSize: 13, fontWeight: '900' },
+  scoreNumH: { fontSize: 13, fontFamily: FONTS.black },
   callBtnH: {
     width: 30,
     height: 30,

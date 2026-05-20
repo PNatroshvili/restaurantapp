@@ -31,9 +31,12 @@ export const COLORS = {
 };
 
 export const FONTS = {
-  regular: 'System',
-  medium: 'System',
-  bold: 'System',
+  regular:  'NotoSansGeorgian_400Regular',
+  medium:   'NotoSansGeorgian_500Medium',
+  semiBold: 'NotoSansGeorgian_600SemiBold',
+  bold:     'NotoSansGeorgian_700Bold',
+  extraBold:'NotoSansGeorgian_800ExtraBold',
+  black:    'NotoSansGeorgian_900Black',
 };
 
 export const SPACING = {

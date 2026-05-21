@@ -64,13 +64,15 @@ export interface MenuItem {
 
 export interface Review {
   id: string;
-  userId: string;
+  userId: string | null;
   restaurantId: string;
   rating: number;
   comment?: string;
   status: 'pending' | 'approved' | 'hidden';
   createdAt: string;
-  user?: Pick<User, 'id' | 'name' | 'avatar'>;
+  user?: Pick<User, 'id' | 'name' | 'avatar'> | null;
+  reviewerName?: string | null;
+  reviewerAvatar?: string | null;
 }
 
 export interface Booking {

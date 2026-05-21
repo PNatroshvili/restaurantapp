@@ -516,7 +516,8 @@ export default function RestaurantDetailScreen() {
                 reviews.map(rev => {
                   const revRating = Number(rev.rating) || 0;
                   const revColor = revRating >= 4.5 ? '#00C896' : revRating >= 3.5 ? '#F59E0B' : COLORS.textSecondary;
-                  const initial = rev.user?.name?.[0]?.toUpperCase() || '?';
+                  const displayName = rev.user?.name || rev.reviewerName || 'მომხმარებელი';
+                  const initial = displayName[0]?.toUpperCase() || '?';
                   return (
                     <View key={rev.id} style={styles.reviewCard}>
                       <View style={styles.reviewCardHeader}>
@@ -524,7 +525,7 @@ export default function RestaurantDetailScreen() {
                           <Text style={styles.reviewAvatarText}>{initial}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.reviewUser}>{rev.user?.name || 'მომხმარებელი'}</Text>
+                          <Text style={styles.reviewUser}>{displayName}</Text>
                           <Text style={styles.reviewDate}>{new Date(rev.createdAt).toLocaleDateString('ka-GE')}</Text>
                         </View>
                         <View style={[styles.reviewScore, { backgroundColor: revColor + '22' }]}>

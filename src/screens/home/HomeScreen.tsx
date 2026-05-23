@@ -11,6 +11,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { Restaurant, Cuisine, RootStackParamList } from '../../types';
 import { restaurantsApi, cuisinesApi } from '../../api/restaurants';
+import { homeConfigApi, ApiCollection } from '../../api/homeConfig';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants';
 import RestaurantCard from '../../components/restaurant/RestaurantCard';
 import SignatureDishCard, { GEORGIAN_DISHES, SignatureDish } from '../../components/restaurant/SignatureDishCard';
@@ -51,14 +52,6 @@ function getTimeGreeting() {
   return { title: 'გვიანი ვახშამი', subtitle: 'ახლა ღია', emoji: '⭐' };
 }
 
-// Curated collections — frontend-only, filter from existing data
-const COLLECTIONS = [
-  { id: 'romantic',  emoji: '💑',  title: 'წყვილებისთვის',  subtitle: 'რომანტიული ვახშამი',      accent: '#8B4FCE', bg: '#1A0D2D' },
-  { id: 'family',    emoji: '👨‍👩‍👧', title: 'ოჯახური',        subtitle: 'ბავშვებისთვის',          accent: '#27AE60', bg: '#0D2018' },
-  { id: 'premium',   emoji: '✨',   title: 'პრემიუმ',         subtitle: 'ლუქს გამოცდილება',        accent: '#F59E0B', bg: '#241800' },
-  { id: 'quick',     emoji: '⚡',   title: 'სწრაფი',          subtitle: '30 წუთამდე',              accent: '#3B82F6', bg: '#0A1528' },
-  { id: 'hidden',    emoji: '🗝️',  title: 'ფარული',          subtitle: 'ადგილობრივის საიდუმლო',   accent: '#EC4899', bg: '#1F0A1A' },
-];
 
 const georgiansFirst = (list: Restaurant[]) => [
   ...list.filter(r => r.cuisine?.name?.toLowerCase().includes('georgian') || r.cuisine?.slug?.includes('georgian')),
@@ -77,11 +70,15 @@ export default function HomeScreen() {
   const [nearby, setNearby] = useState<Restaurant[]>([]);
   const [cuisines, setCuisines] = useState<Cuisine[]>([]);
   const [recentlyViewed, setRecentlyViewed] = useState<Restaurant[]>([]);
+  const [collections, setCollections] = useState<ApiCollection[]>([]);
+  const [sectionConfig, setSectionConfig] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [selectedDay, setSelectedDay] = useState(0);
   const [guests, setGuests] = useState(2);
+
+  const sectionActive = (key: string) => key in sectionConfig ? sectionConfig[key] : true;
 
   const greeting = getTimeGreeting();
   const pageAnim = useRef(new Animated.Value(0)).current;
@@ -98,14 +95,22 @@ export default function HomeScreen() {
   const load = async () => {
     setLoading(true);
     try {
-      const [popRes, newRes, cusRes] = await Promise.all([
+      const [popRes, newRes, cusRes, colRes, cfgRes] = await Promise.all([
         restaurantsApi.getAll({ limit: 12, city: 'თბილისი' }),
         restaurantsApi.getAll({ limit: 8, city: 'თბილისი' }),
         cuisinesApi.getAll(),
+        homeConfigApi.getCollections().catch(() => ({ data: [] })),
+        homeConfigApi.getHomeSections().catch(() => ({ data: [] })),
       ]);
       setPopular(popRes.data?.data || []);
       setNewest(newRes.data?.data || []);
       setCuisines(Array.isArray(cusRes.data) ? cusRes.data : []);
+      setCollections(Array.isArray(colRes.data) ? colRes.data : []);
+      const cfg: Record<string, boolean> = {};
+      (Array.isArray(cfgRes.data) ? cfgRes.data : []).forEach((s: any) => {
+        cfg[s.sectionKey] = s.isActive;
+      });
+      setSectionConfig(cfg);
     } catch {}
     setLoading(false);
   };
@@ -163,6 +168,16 @@ export default function HomeScreen() {
       cuisineId: georgianCuisine?.id,
       cuisineName: georgianCuisine?.name ?? 'ქართული',
     });
+  }, [navigation, cuisines]);
+
+  const onCollectionPress = useCallback((col: ApiCollection) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (col.filterType === 'cuisine') {
+      const cuisine = cuisines.find(c => c.slug === col.filterValue || c.name === col.filterValue);
+      navigation.navigate('Search', cuisine ? { cuisineId: cuisine.id, cuisineName: cuisine.name } : undefined as any);
+    } else {
+      navigation.navigate('Search', undefined as any);
+    }
   }, [navigation, cuisines]);
 
   const renderCard = useCallback(({ item }: { item: Restaurant }) => (
@@ -265,25 +280,27 @@ export default function HomeScreen() {
         </View>
 
         {/* ─── Georgian Classics ───────────────────────────────────────── */}
-        <View style={styles.section}>
-          <View style={sTitle.row}>
-            <View>
-              <Text style={[sTitle.text, { fontSize: 18 }]}>🇬🇪 ქართული კლასიკა</Text>
-              <Text style={styles.sectionSub}>Must-try dishes for every visitor</Text>
+        {sectionActive('georgian_classics') && (
+          <View style={styles.section}>
+            <View style={sTitle.row}>
+              <View>
+                <Text style={[sTitle.text, { fontSize: 18 }]}>🇬🇪 ქართული კლასიკა</Text>
+                <Text style={styles.sectionSub}>Must-try dishes for every visitor</Text>
+              </View>
             </View>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={GEORGIAN_DISHES}
+              keyExtractor={d => d.key}
+              contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.md }}
+              renderItem={({ item }) => <SignatureDishCard dish={item} onPress={onDishPress} />}
+            />
           </View>
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={GEORGIAN_DISHES}
-            keyExtractor={d => d.key}
-            contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.md }}
-            renderItem={({ item }) => <SignatureDishCard dish={item} onPress={onDishPress} />}
-          />
-        </View>
+        )}
 
         {/* ─── Cuisine categories ──────────────────────────────────────── */}
-        {cuisines.length > 0 && (
+        {sectionActive('cuisine_categories') && cuisines.length > 0 && (
           <View style={styles.section}>
             <SectionTitle title="სამზარეულო" onSeeAll={() => goToSearch()} />
             <FlatList
@@ -297,8 +314,36 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {/* ─── Collections ─────────────────────────────────────────────── */}
+        {sectionActive('collections') && collections.length > 0 && (
+          <View style={styles.section}>
+            <SectionTitle title="კოლექციები" />
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={collections}
+              keyExtractor={c => c.id}
+              contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.md }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.collectionCard, { backgroundColor: item.bg, borderColor: item.accent + '60' }]}
+                  onPress={() => onCollectionPress(item)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.collectionEmoji}>{item.emoji}</Text>
+                  <Text style={[styles.collectionTitle, { color: item.accent }]}>{item.titleKa}</Text>
+                  {item.subtitle ? <Text style={styles.collectionSub}>{item.subtitle}</Text> : null}
+                  <View style={[styles.collectionArrow, { backgroundColor: item.accent + '22' }]}>
+                    <Ionicons name="arrow-forward" size={12} color={item.accent} />
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        )}
+
         {/* ─── Near you ────────────────────────────────────────────────── */}
-        <View style={styles.section}>
+        {sectionActive('nearby') && <View style={styles.section}>
           <SectionTitle
             title="ახლომახლო"
             left={<RadarDot />}
@@ -338,10 +383,10 @@ export default function HomeScreen() {
               <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} style={{ marginLeft: 'auto' }} />
             </TouchableOpacity>
           )}
-        </View>
+        </View>}
 
         {/* ─── Last-minute deals ───────────────────────────────────────── */}
-        {withDiscounts.length > 0 && (
+        {sectionActive('deals') && withDiscounts.length > 0 && (
           <View style={styles.section}>
             <View style={sTitle.row}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -367,7 +412,7 @@ export default function HomeScreen() {
         )}
 
         {/* ─── Top rated ───────────────────────────────────────────────── */}
-        <View style={styles.section}>
+        {sectionActive('top_rated') && <View style={styles.section}>
           <SectionTitle title="⭐ ტოპ რესტორნები" onSeeAll={() => goToSearch()} />
           {loading ? (
             <View style={{ flexDirection: 'row', paddingHorizontal: SPACING.md, gap: SPACING.md }}>
@@ -383,10 +428,10 @@ export default function HomeScreen() {
               renderItem={renderCard}
             />
           )}
-        </View>
+        </View>}
 
         {/* ─── Trending now ────────────────────────────────────────────── */}
-        {trending.length > 0 && (
+        {sectionActive('trending') && trending.length > 0 && (
           <View style={styles.section}>
             <SectionTitle title="📈 ტრენდი" onSeeAll={() => goToSearch()} />
             {loading ? (
@@ -409,7 +454,7 @@ export default function HomeScreen() {
         )}
 
         {/* ─── Recently viewed ──────────────────────────────────────────── */}
-        {recentlyViewed.length > 0 && (
+        {sectionActive('recently_viewed') && recentlyViewed.length > 0 && (
           <View style={styles.section}>
             <SectionTitle title="🕐 ახლახანს ნანახი" />
             <FlatList
@@ -424,7 +469,7 @@ export default function HomeScreen() {
         )}
 
         {/* ─── New restaurants ─────────────────────────────────────────── */}
-        <View style={styles.section}>
+        {sectionActive('new_restaurants') && <View style={styles.section}>
           <SectionTitle title="🆕 ახალი რესტორნები" onSeeAll={() => goToSearch()} />
           <View style={{ paddingHorizontal: SPACING.md, gap: SPACING.sm }}>
             {loading
@@ -436,7 +481,7 @@ export default function HomeScreen() {
                 ))
             }
           </View>
-        </View>
+        </View>}
 
         </Animated.View>
       </ScrollView>

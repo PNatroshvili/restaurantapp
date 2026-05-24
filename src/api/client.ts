@@ -23,7 +23,7 @@ apiClient.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-    if (error.response?.status === 401 && !original._retry && getAuthState) {
+    if (error.response?.status === 401 && !original._retry && !original.url?.includes('auth/refresh') && getAuthState) {
       original._retry = true;
       try {
         await getAuthState().refreshTokens();

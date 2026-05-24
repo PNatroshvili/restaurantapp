@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, TouchableOpacity, FlatList,
   Image, ScrollView, Modal, Animated, Easing, Keyboard, ActivityIndicator,
+  Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -72,6 +74,65 @@ function FadeInItem({ index, children }: { index: number; children: React.ReactN
   );
 }
 
+// Chip wrapper that applies a teal gradient when active, plain surface when inactive
+function FilterChip({
+  active,
+  onPress,
+  style,
+  activeOpacity,
+  children,
+}: {
+  active: boolean;
+  onPress: () => void;
+  style?: any;
+  activeOpacity?: number;
+  children: React.ReactNode;
+}) {
+  if (active) {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={activeOpacity ?? 0.8}
+        style={[
+          styles.chip,
+          {
+            padding: 0,
+            overflow: 'hidden',
+            borderWidth: 0,
+            shadowColor: '#00B67A',
+            shadowOpacity: 0.35,
+            shadowOffset: { width: 0, height: 2 },
+            shadowRadius: 6,
+            elevation: 5,
+          },
+          style,
+        ]}
+      >
+        <LinearGradient
+          colors={['#00B67A', '#00A36E']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 5,
+            paddingHorizontal: 12,
+            height: 32,
+            borderRadius: 999,
+          }}
+        >
+          {children}
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  }
+  return (
+    <TouchableOpacity onPress={onPress} style={[styles.chip, style]} activeOpacity={activeOpacity ?? 0.8}>
+      {children}
+    </TouchableOpacity>
+  );
+}
+
 export default function SearchScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProps>();
@@ -84,11 +145,15 @@ export default function SearchScreen() {
   const [inputFocused, setInputFocused] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
 
+  // Autocomplete suggestions
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestionsVisible, setSuggestionsVisible] = useState(false);
+  const suggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Primary filters (always visible)
   const [filterOpen, setFilterOpen] = useState(false);
-  const [filterRating, setFilterRating] = useState<number | null>(null);
+  const [filterRating, setFilterRating] = useState<number | null>((route.params as any)?.minRating ?? null);
   const [filterDiscount, setFilterDiscount] = useState(false);
-  const [showRatingPicker, setShowRatingPicker] = useState(false);
 
   // Secondary filters (in modal)
   const [filterModalVisible, setFilterModalVisible] = useState(false);
@@ -101,6 +166,14 @@ export default function SearchScreen() {
       setSearchQuery('');
     }
   }, [route.params?.cuisineId]);
+
+  useEffect(() => {
+    const minRating = (route.params as any)?.minRating;
+    if (minRating != null) {
+      setFilterRating(minRating);
+      setSortKey('rating');
+    }
+  }, [(route.params as any)?.minRating]);
   const [filterPrice, setFilterPrice] = useState<PriceFilter>(null);
   const [filterDietary, setFilterDietary] = useState<Set<DietaryKey>>(new Set());
 
@@ -115,13 +188,7 @@ export default function SearchScreen() {
   const [nearMeLoading, setNearMeLoading] = useState(false);
 
   // Animations
-  const ratingAnim = useRef(new Animated.Value(0)).current;
   const sortAnim   = useRef(new Animated.Value(0)).current;
-  const modalAnim  = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.spring(ratingAnim, { toValue: showRatingPicker ? 1 : 0, useNativeDriver: true, speed: 22, bounciness: 5 }).start();
-  }, [showRatingPicker]);
 
   useEffect(() => {
     Animated.spring(sortAnim, { toValue: showSort ? 1 : 0, useNativeDriver: true, speed: 22, bounciness: 4 }).start();
@@ -146,6 +213,28 @@ export default function SearchScreen() {
     })();
   }, []);
 
+  // Debounced suggestions fetch
+  const fetchSuggestions = useCallback((text: string) => {
+    if (suggestDebounceRef.current) clearTimeout(suggestDebounceRef.current);
+    if (text.length < 2) {
+      setSuggestions([]);
+      setSuggestionsVisible(false);
+      return;
+    }
+    suggestDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await restaurantsApi.getAll({ q: text, limit: 3 });
+        const items: Restaurant[] = res.data?.data || [];
+        const names = items.map(r => r.name).filter(Boolean);
+        setSuggestions(names);
+        setSuggestionsVisible(names.length > 0);
+      } catch {
+        setSuggestions([]);
+        setSuggestionsVisible(false);
+      }
+    }, 300);
+  }, []);
+
   const saveHistory = useCallback(async (query: string) => {
     const q = query.trim();
     if (!q || q.length < 2) return;
@@ -162,12 +251,19 @@ export default function SearchScreen() {
   };
 
   const secondaryFilterCount = [
-    filterCuisine !== null,
     filterPrice !== null,
     filterDietary.size > 0,
+    // cuisine only counts as secondary if it's NOT one of the top-4 (i.e. chosen from modal)
+    filterCuisine !== null && !cuisines.slice(0, 4).some(c => c.id === filterCuisine),
   ].filter(Boolean).length;
 
-  const primaryFilterCount = [filterOpen, filterRating !== null, filterDiscount, filterNearMe].filter(Boolean).length;
+  const primaryFilterCount = [
+    filterOpen,
+    filterRating !== null,
+    filterDiscount,
+    filterNearMe,
+    filterCuisine !== null,
+  ].filter(Boolean).length;
   const activeFilterCount  = primaryFilterCount + secondaryFilterCount;
 
   const toggleDietary = (key: DietaryKey) => {
@@ -179,7 +275,7 @@ export default function SearchScreen() {
   };
 
   const clearFilters = () => {
-    setFilterOpen(false); setFilterRating(null); setShowRatingPicker(false);
+    setFilterOpen(false); setFilterRating(null);
     setFilterDiscount(false); setFilterCuisine(null); setFilterPrice(null);
     setFilterDietary(new Set()); setSearchQuery('');
     setFilterNearMe(false); setSortKey('rating');
@@ -260,7 +356,6 @@ export default function SearchScreen() {
   const showHistory = inputFocused && searchQuery.length === 0 && history.length > 0;
 
   const sortTranslate = sortAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] });
-  const ratingTranslate = ratingAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] });
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -278,9 +373,16 @@ export default function SearchScreen() {
             placeholder="რესტორანი, სამზარეულო, მისამართი..."
             placeholderTextColor={COLORS.textMuted}
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={text => { setSearchQuery(text); fetchSuggestions(text); }}
             onFocus={() => setInputFocused(true)}
-            onBlur={() => { setInputFocused(false); if (searchQuery.trim()) saveHistory(searchQuery); }}
+            onBlur={() => {
+              // Delay hiding so taps on suggestions register first
+              setTimeout(() => {
+                setInputFocused(false);
+                setSuggestionsVisible(false);
+              }, 150);
+              if (searchQuery.trim()) saveHistory(searchQuery);
+            }}
             onSubmitEditing={() => saveHistory(searchQuery)}
             returnKeyType="search"
             autoFocus
@@ -293,7 +395,30 @@ export default function SearchScreen() {
         </View>
       </View>
 
-      {/* ── Search history ── */}
+      {/* ── Autocomplete suggestions dropdown ── */}
+      {suggestionsVisible && (
+        <View style={styles.suggestionsBox}>
+          {suggestions.map((s, i) => (
+            <TouchableOpacity
+              key={i}
+              style={styles.suggestionRow}
+              onPress={() => {
+                setSearchQuery(s);
+                setSuggestionsVisible(false);
+                setSuggestions([]);
+                saveHistory(s);
+                Keyboard.dismiss();
+              }}
+            >
+              <Ionicons name="search" size={13} color={COLORS.textMuted} />
+              <Text style={styles.suggestionText}>{s}</Text>
+              <Ionicons name="arrow-up-outline" size={13} color={COLORS.textMuted} style={{ transform: [{ rotate: '45deg' }] }} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* ── Search history chips ── */}
       {showHistory && (
         <View style={styles.historyBox}>
           <View style={styles.historyHeader}>
@@ -302,13 +427,23 @@ export default function SearchScreen() {
               <Text style={styles.historyClear}>გასუფთავება</Text>
             </TouchableOpacity>
           </View>
-          {history.map((h, i) => (
-            <TouchableOpacity key={i} style={styles.historyRow} onPress={() => { setSearchQuery(h); setInputFocused(false); Keyboard.dismiss(); }}>
-              <Ionicons name="time-outline" size={15} color={COLORS.textMuted} />
-              <Text style={styles.historyText}>{h}</Text>
-              <Ionicons name="arrow-up-outline" size={14} color={COLORS.textMuted} style={{ transform: [{ rotate: '45deg' }] }} />
-            </TouchableOpacity>
-          ))}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.historyChipsRow}
+            keyboardShouldPersistTaps="handled"
+          >
+            {history.map((h, i) => (
+              <TouchableOpacity
+                key={i}
+                style={styles.historyChip}
+                onPress={() => { setSearchQuery(h); setSuggestionsVisible(false); Keyboard.dismiss(); }}
+              >
+                <Ionicons name="time-outline" size={13} color={COLORS.textMuted} />
+                <Text style={styles.historyChipText}>{h}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       )}
 
@@ -317,37 +452,54 @@ export default function SearchScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
 
           {/* Near Me — prominent */}
-          <TouchableOpacity
-            style={[styles.chip, styles.chipNearMe, filterNearMe && styles.chipNearMeActive]}
+          <FilterChip
+            active={filterNearMe}
             onPress={toggleNearMe}
-            activeOpacity={0.8}
+            style={filterNearMe ? {} : styles.chipNearMe}
           >
             {nearMeLoading
               ? <ActivityIndicator size="small" color={filterNearMe ? '#fff' : COLORS.primary} style={{ width: 13, height: 13 }} />
               : <Ionicons name={filterNearMe ? 'navigate' : 'navigate-outline'} size={13} color={filterNearMe ? '#fff' : COLORS.primary} />
             }
             <Text style={[styles.chipText, { color: filterNearMe ? '#fff' : COLORS.primary }]}>ახლოს</Text>
-          </TouchableOpacity>
+          </FilterChip>
 
           {/* Open now */}
-          <TouchableOpacity style={[styles.chip, filterOpen && styles.chipActive]} onPress={() => setFilterOpen(!filterOpen)}>
+          <FilterChip active={filterOpen} onPress={() => setFilterOpen(!filterOpen)}>
             <View style={[styles.dot, { backgroundColor: filterOpen ? '#fff' : COLORS.success }]} />
             <Text style={[styles.chipText, filterOpen && styles.chipTextActive]}>ახლა ღია</Text>
-          </TouchableOpacity>
+          </FilterChip>
 
-          {/* Rating */}
-          <TouchableOpacity style={[styles.chip, filterRating !== null && styles.chipActive]} onPress={() => setShowRatingPicker(s => !s)}>
-            <Ionicons name="star" size={11} color={filterRating !== null ? '#fff' : COLORS.star} />
-            <Text style={[styles.chipText, filterRating !== null && styles.chipTextActive]}>
-              {filterRating !== null ? `${filterRating}★+` : 'შეფასება'}
-            </Text>
-          </TouchableOpacity>
+          {/* Rating quick chips: 4+ and 3+ */}
+          <FilterChip active={filterRating === 4} onPress={() => setFilterRating(filterRating === 4 ? null : 4)}>
+            <Ionicons name="star" size={11} color={filterRating === 4 ? '#fff' : COLORS.star} />
+            <Text style={[styles.chipText, filterRating === 4 && styles.chipTextActive]}>4+</Text>
+          </FilterChip>
+
+          <FilterChip active={filterRating === 3} onPress={() => setFilterRating(filterRating === 3 ? null : 3)}>
+            <Ionicons name="star" size={11} color={filterRating === 3 ? '#fff' : COLORS.star} />
+            <Text style={[styles.chipText, filterRating === 3 && styles.chipTextActive]}>3+</Text>
+          </FilterChip>
+
+          {/* Cuisine quick chips — top 4 by appearance in results */}
+          {cuisines.slice(0, 4).map(c => (
+            <FilterChip
+              key={c.id}
+              active={filterCuisine === c.id}
+              onPress={() => setFilterCuisine(filterCuisine === c.id ? null : c.id)}
+            >
+              {c.icon ? <Text style={{ fontSize: 11 }}>{c.icon}</Text> : null}
+              <Text style={[styles.chipText, filterCuisine === c.id && styles.chipTextActive]} numberOfLines={1}>
+                {c.name}
+              </Text>
+            </FilterChip>
+          ))}
 
           {/* Discount */}
-          <TouchableOpacity style={[styles.chip, filterDiscount && styles.chipActive]} onPress={() => setFilterDiscount(!filterDiscount)}>
+          <FilterChip active={filterDiscount} onPress={() => setFilterDiscount(!filterDiscount)}>
             <Text style={{ fontSize: 11 }}>🏷️</Text>
             <Text style={[styles.chipText, filterDiscount && styles.chipTextActive]}>აქცია</Text>
-          </TouchableOpacity>
+          </FilterChip>
 
           {/* Secondary filters button */}
           <TouchableOpacity
@@ -356,7 +508,7 @@ export default function SearchScreen() {
           >
             <Ionicons name="options-outline" size={13} color={secondaryFilterCount > 0 ? COLORS.primary : COLORS.textSecondary} />
             <Text style={[styles.chipText, secondaryFilterCount > 0 && { color: COLORS.primary }]}>
-              ფილტრი{secondaryFilterCount > 0 ? ` (${secondaryFilterCount})` : ''}
+              მეტი{secondaryFilterCount > 0 ? ` (${secondaryFilterCount})` : ''}
             </Text>
           </TouchableOpacity>
 
@@ -369,29 +521,6 @@ export default function SearchScreen() {
           )}
         </ScrollView>
       </View>
-
-      {/* ── Rating picker (animated) ── */}
-      {showRatingPicker && (
-        <Animated.View style={[styles.ratingPicker, { opacity: ratingAnim, transform: [{ translateY: ratingTranslate }] }]}>
-          <Text style={styles.ratingPickerLabel}>მინიმალური შეფასება</Text>
-          <View style={styles.ratingStarsRow}>
-            {[1, 2, 3, 4, 5].map(s => (
-              <TouchableOpacity
-                key={s}
-                onPress={() => { setFilterRating(filterRating === s ? null : s); setShowRatingPicker(false); }}
-                style={styles.ratingStar}
-              >
-                <Ionicons
-                  name={filterRating !== null && s <= filterRating ? 'star' : 'star-outline'}
-                  size={28}
-                  color={filterRating !== null && s <= filterRating ? COLORS.star : COLORS.textMuted}
-                />
-                <Text style={styles.ratingStarNum}>{s}.0+</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Animated.View>
-      )}
 
       {/* ── Results bar ── */}
       <View style={styles.resultsBar}>
@@ -440,19 +569,13 @@ export default function SearchScreen() {
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Text style={styles.emptyEmoji}>🔍</Text>
-              <Text style={styles.emptyTitle}>შედეგი არ მოიძებნა</Text>
-              <Text style={styles.emptySub}>
-                {searchQuery.trim()
-                  ? `"${searchQuery}" — ვერ მოიძებნა\nსცადეთ სხვა სიტყვა`
-                  : 'სცადეთ ფილტრების შეცვლა'}
-              </Text>
-              {activeFilterCount > 0 && (
-                <TouchableOpacity style={styles.clearBtn} onPress={clearFilters}>
-                  <Ionicons name="refresh-outline" size={15} color="#fff" />
-                  <Text style={styles.clearBtnText}>ფილტრების გასუფთავება</Text>
-                </TouchableOpacity>
-              )}
+              <Text style={styles.emptyEmoji}>🍽️</Text>
+              <Text style={styles.emptyTitle}>რესტორანი ვერ მოიძებნა</Text>
+              <Text style={styles.emptySub}>სხვა ფილტრები სცადე</Text>
+              <TouchableOpacity style={styles.clearBtn} onPress={clearFilters}>
+                <Ionicons name="refresh-outline" size={15} color="#fff" />
+                <Text style={styles.clearBtnText}>გასუფთავება</Text>
+              </TouchableOpacity>
             </View>
           }
           renderItem={({ item, index }) => (
@@ -593,6 +716,8 @@ export default function SearchScreen() {
   );
 }
 
+const FAV_KEY = '@favorites';
+
 function SearchCard({ restaurant: r, navigation, userLocation }: { restaurant: Restaurant; navigation: any; userLocation: { lat: number; lng: number } | null }) {
   const cover = coverOf(r);
   const rating = Number(r.ratingAvg) || 0;
@@ -600,6 +725,29 @@ function SearchCard({ restaurant: r, navigation, userLocation }: { restaurant: R
   const sc = scoreColor(rating);
   const discount = getDiscount(r.id);
   const scale = useRef(new Animated.Value(1)).current;
+  const [isFav, setIsFav] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(FAV_KEY).then(raw => {
+      const ids: string[] = raw ? JSON.parse(raw) : [];
+      setIsFav(ids.includes(r.id));
+    }).catch(() => {});
+  }, [r.id]);
+
+  const toggleFav = async (e: any) => {
+    e.stopPropagation?.();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const raw = await AsyncStorage.getItem(FAV_KEY).catch(() => null);
+    const ids: string[] = raw ? JSON.parse(raw) : [];
+    const next = ids.includes(r.id) ? ids.filter(id => id !== r.id) : [...ids, r.id];
+    setIsFav(!ids.includes(r.id));
+    await AsyncStorage.setItem(FAV_KEY, JSON.stringify(next)).catch(() => {});
+    if (!ids.includes(r.id)) {
+      restaurantsApi.addFavorite(r.id).catch(() => {});
+    } else {
+      restaurantsApi.removeFavorite(r.id).catch(() => {});
+    }
+  };
 
   const onPressIn = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
   const onPressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
@@ -639,7 +787,10 @@ function SearchCard({ restaurant: r, navigation, userLocation }: { restaurant: R
 
         <View style={styles.cardBody}>
           <View style={styles.cardTopRow}>
-            <Text style={styles.cardName} numberOfLines={1}>{r.name}</Text>
+            <Text style={[styles.cardName, { flex: 1 }]} numberOfLines={1}>{r.name}</Text>
+            <TouchableOpacity onPress={toggleFav} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name={isFav ? 'heart' : 'heart-outline'} size={20} color={isFav ? '#EF4444' : COLORS.textMuted} />
+            </TouchableOpacity>
           </View>
 
           {r.cuisine && (
@@ -715,12 +866,29 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 15, color: COLORS.text },
 
+  // Autocomplete suggestions
+  suggestionsBox: {
+    backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    zIndex: 50,
+    ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.12, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8 }, android: { elevation: 6 } }),
+  },
+  suggestionRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.md, paddingVertical: 11, borderTopWidth: 1, borderTopColor: COLORS.border },
+  suggestionText: { flex: 1, fontSize: 14, color: COLORS.text, fontWeight: '500' },
+
+  // History chips
   historyBox: { backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.md, paddingTop: 12, paddingBottom: 4 },
   historyTitle: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 },
   historyClear: { fontSize: 12, color: COLORS.primary, fontWeight: '600' },
   historyRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.md, paddingVertical: 11, borderTopWidth: 1, borderTopColor: COLORS.border },
   historyText: { flex: 1, fontSize: 14, color: COLORS.text, fontWeight: '500' },
+  historyChipsRow: { paddingHorizontal: SPACING.md, paddingVertical: 10, gap: 8 },
+  historyChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surfaceElevated, borderWidth: 1.5, borderColor: COLORS.border,
+  },
+  historyChipText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
 
   filterBar: { backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   filterRow: { paddingHorizontal: SPACING.md, paddingVertical: 10, gap: 8, alignItems: 'center' },
@@ -737,15 +905,6 @@ const styles = StyleSheet.create({
   chipText:        { fontSize: 12, color: COLORS.textSecondary, fontWeight: '700' },
   chipTextActive:  { color: '#fff' },
   dot: { width: 7, height: 7, borderRadius: 3.5 },
-
-  ratingPicker: {
-    backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border,
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.md,
-  },
-  ratingPickerLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 },
-  ratingStarsRow: { flexDirection: 'row', gap: 4 },
-  ratingStar: { alignItems: 'center', gap: 4, flex: 1 },
-  ratingStarNum: { fontSize: 10, color: COLORS.textSecondary, fontWeight: '600' },
 
   resultsBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

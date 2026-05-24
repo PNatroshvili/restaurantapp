@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, Image, Switch,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, Image, Switch, Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -13,20 +13,24 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
 import { bookingsApi } from '../../api/bookings';
 import { restaurantsApi } from '../../api/restaurants';
+import { reviewsApi } from '../../api/reviews';
 import { authApi } from '../../api/auth';
 import { RootStackParamList } from '../../types';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import Button from '../../components/common/Button';
 import ConfirmModal from '../../components/common/ConfirmModal';
+import { useTheme } from '../../context/ThemeContext';
 
 const APP_VERSION = '1.0.0';
 
 export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, isAuthenticated, logout } = useAuthStore();
+  const { isDark, toggleTheme } = useTheme();
 
   const [bookingsCount, setBookingsCount] = useState(0);
   const [favoritesCount, setFavoritesCount] = useState(0);
+  const [reviewsCount, setReviewsCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(user?.avatar || null);
   const [notifEnabled, setNotifEnabled] = useState(true);
@@ -40,12 +44,33 @@ export default function ProfileScreen() {
   }, []);
 
   const toggleNotifications = async (value: boolean) => {
+    if (value) {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status === 'undetermined') {
+        await new Promise<void>(resolve => {
+          Alert.alert(
+            '🔔 შეტყობინებები',
+            'ჯავშნის დადასტურება და შეხსენებები მიიღო პირდაპირ ტელეფონში',
+            [
+              { text: 'გაუქმება', style: 'cancel', onPress: () => resolve() },
+              {
+                text: 'დაშვება',
+                onPress: async () => {
+                  await Notifications.requestPermissionsAsync();
+                  resolve();
+                },
+              },
+            ],
+            { cancelable: true, onDismiss: () => resolve() },
+          );
+        });
+      } else if (status !== 'granted') {
+        await Notifications.requestPermissionsAsync();
+      }
+    }
     setNotifEnabled(value);
     await AsyncStorage.setItem('notifications_enabled', value ? 'true' : 'false');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (value) {
-      await Notifications.requestPermissionsAsync();
-    }
   };
 
   const loadStats = useCallback(async (isRefresh = false) => {
@@ -54,6 +79,10 @@ export default function ProfileScreen() {
     await Promise.allSettled([
       bookingsApi.getMy().then(({ data }) => setBookingsCount(Array.isArray(data) ? data.length : 0)),
       restaurantsApi.getFavorites().then(({ data }) => setFavoritesCount(Array.isArray(data) ? data.length : 0)),
+      reviewsApi.getMy().then(({ data }) => {
+        const count = (data as any)?.total ?? (Array.isArray((data as any)?.data) ? (data as any).data.length : 0);
+        setReviewsCount(count);
+      }).catch(() => {}),
     ]);
     setRefreshing(false);
   }, [isAuthenticated]);
@@ -86,9 +115,12 @@ export default function ProfileScreen() {
     return COLORS.warning;
   };
 
+  const themeBackground = isDark ? COLORS.background : '#F0F4F8';
+  const themeText = isDark ? COLORS.text : '#0F1724';
+
   if (!isAuthenticated) {
     return (
-      <SafeAreaView style={styles.root}>
+      <SafeAreaView style={[styles.root, { backgroundColor: themeBackground }]}>
         <View style={styles.guestContainer}>
           <View style={styles.guestAvatarCircle}>
             <Ionicons name="person" size={48} color={COLORS.textMuted} />
@@ -108,9 +140,13 @@ export default function ProfileScreen() {
   }
 
   const initial = user?.name?.[0]?.toUpperCase() || '?';
+  const memberSince = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString('ka-GE', { year: 'numeric', month: 'long' })
+    : null;
+  const roleLabel = user?.role === 'restaurant_manager' ? 'მენეჯერი' : user?.role === 'admin' ? 'ადმინი' : null;
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={[styles.root, { backgroundColor: themeBackground }]}>
       <ConfirmModal
         visible={logoutConfirm}
         title="გამოსვლა"
@@ -154,32 +190,58 @@ export default function ProfileScreen() {
               <Ionicons name="camera" size={12} color="#fff" />
             </View>
           </TouchableOpacity>
-          <Text style={styles.name}>{user?.name}{user?.lastName ? ` ${user.lastName}` : ''}</Text>
+
+          <View style={styles.nameRow}>
+            <Text style={[styles.name, { color: themeText }]}>{user?.name}{user?.lastName ? ` ${user.lastName}` : ''}</Text>
+            {roleLabel && (
+              <View style={styles.roleBadge}>
+                <Text style={styles.roleBadgeText}>{roleLabel}</Text>
+              </View>
+            )}
+          </View>
+
           <Text style={styles.contact}>{user?.phone || user?.email}</Text>
+          {memberSince && (
+            <View style={styles.memberRow}>
+              <Ionicons name="calendar-outline" size={12} color={COLORS.textMuted} />
+              <Text style={styles.memberSince}>წევრი {memberSince}-დან</Text>
+            </View>
+          )}
 
           {/* Stats row */}
           <View style={styles.statsRow}>
-            <View style={styles.statItem}>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() => navigation.navigate('Main', { screen: 'Bookings' } as any)}
+              activeOpacity={0.7}
+            >
               <Text style={styles.statNumber}>{bookingsCount}</Text>
               <Text style={styles.statLabel}>ჯავშანი</Text>
-            </View>
+            </TouchableOpacity>
             <View style={styles.statDivider} />
-            <View style={styles.statItem}>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() => navigation.navigate('Main', { screen: 'Favorites' } as any)}
+              activeOpacity={0.7}
+            >
               <Text style={styles.statNumber}>{favoritesCount}</Text>
               <Text style={styles.statLabel}>ფავორიტი</Text>
-            </View>
+            </TouchableOpacity>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>0</Text>
+              <Text style={styles.statNumber}>{reviewsCount}</Text>
               <Text style={styles.statLabel}>შეფასება</Text>
             </View>
           </View>
 
-          {/* Badge row */}
-          <TouchableOpacity style={styles.badgeRow}>
-            <Text style={styles.badgeEmojis}>🏅🥈🥉</Text>
-            <Text style={styles.badgeRowLabel}>ბეჯები და მიღწევები</Text>
-            <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+          {/* Edit profile shortcut */}
+          <TouchableOpacity
+            style={styles.editProfileBtn}
+            onPress={() => navigation.navigate('ProfileEdit')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="pencil-outline" size={14} color={COLORS.primary} />
+            <Text style={styles.editProfileText}>პროფილის რედაქტირება</Text>
           </TouchableOpacity>
         </View>
 
@@ -213,6 +275,7 @@ export default function ProfileScreen() {
           <MenuRow
             icon="star-outline"
             label="შეფასებები"
+            badge={reviewsCount > 0 ? String(reviewsCount) : undefined}
             onPress={() => {}}
           />
           <MenuRow
@@ -253,7 +316,7 @@ export default function ProfileScreen() {
         {/* ─── Section: შეტყობინებები ─── */}
         <SectionHeader title="შეტყობინებები" />
         <View style={styles.section}>
-          <View style={menuRowStyles.row}>
+          <View style={[menuRowStyles.row, menuRowStyles.border]}>
             <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} style={{ marginRight: SPACING.md }} />
             <Text style={[menuRowStyles.label]}>შეტყობინებები</Text>
             <Switch
@@ -358,8 +421,15 @@ const styles = StyleSheet.create({
   avatarImg: { width: 84, height: 84, borderRadius: 42, borderWidth: 2, borderColor: COLORS.primary },
   avatarText: { fontSize: 34, fontWeight: '800', color: '#fff' },
   avatarEditBadge: { position: 'absolute', bottom: 0, right: 0, width: 26, height: 26, borderRadius: 13, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: COLORS.surface },
-  name: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
-  contact: { fontSize: 13, color: COLORS.textSecondary, marginBottom: SPACING.lg },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  name: { fontSize: 20, fontWeight: '800', color: COLORS.text },
+  roleBadge: { backgroundColor: COLORS.primary + '22', paddingHorizontal: 9, paddingVertical: 3, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.primary + '55' },
+  roleBadgeText: { fontSize: 11, fontWeight: '800', color: COLORS.primary },
+  contact: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 6 },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: SPACING.lg },
+  memberSince: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500' },
+  editProfileBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.sm, paddingHorizontal: 18, paddingVertical: 8, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.primary + '66', backgroundColor: COLORS.primaryLight },
+  editProfileText: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
 
   // Stats
   statsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.lg, backgroundColor: COLORS.background, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, paddingHorizontal: SPACING.xl, width: '100%' },

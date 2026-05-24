@@ -2,7 +2,7 @@
   "expo": {
     "name": "RestaurantApp",
     "slug": "RestaurantApp",
-    "version": "1.5.3",
+    "version": "1.5.4",
     "scheme": "ge.skup.restaurants",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

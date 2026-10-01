@@ -133,9 +133,11 @@ export default function HomeScreen() {
     load();
     loadNearby();
     getRecentlyViewed().then(setRecentlyViewed);
-    if (isAuthenticated) {
-      notificationsApi.getAll().then(res => setNotificationCount(res.data?.unreadCount || 0)).catch(() => setNotificationCount(0));
-    } else setNotificationCount(0);
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) { setNotificationCount(0); return; }
+    notificationsApi.getAll().then(res => setNotificationCount(res.data?.unreadCount || 0)).catch(() => setNotificationCount(0));
   }, [isAuthenticated]);
 
   const goToSearch = (params?: any) => navigation.navigate('Search', params);

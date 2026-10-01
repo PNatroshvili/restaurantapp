@@ -12,6 +12,7 @@ import * as Location from 'expo-location';
 import { Restaurant, Cuisine, RestaurantOffer, RootStackParamList } from '../../types';
 import { restaurantsApi, cuisinesApi } from '../../api/restaurants';
 import { bookingsApi } from '../../api/bookings';
+import { notificationsApi } from '../../api/notifications';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import RestaurantCard from '../../components/restaurant/RestaurantCard';
 import SignatureDishCard, { GEORGIAN_DISHES, SignatureDish } from '../../components/restaurant/SignatureDishCard';
@@ -68,6 +69,7 @@ export default function HomeScreen() {
   const [activeOffers, setActiveOffers] = useState<RestaurantOffer[]>([]);
   const [availableTonight, setAvailableTonight] = useState<Restaurant[]>([]);
   const [loadError, setLoadError] = useState('');
+  const [notificationCount, setNotificationCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -131,7 +133,10 @@ export default function HomeScreen() {
     load();
     loadNearby();
     getRecentlyViewed().then(setRecentlyViewed);
-  }, []);
+    if (isAuthenticated) {
+      notificationsApi.getAll().then(res => setNotificationCount(res.data?.unreadCount || 0)).catch(() => setNotificationCount(0));
+    } else setNotificationCount(0);
+  }, [isAuthenticated]);
 
   const goToSearch = (params?: any) => navigation.navigate('Search', params);
 
@@ -196,6 +201,7 @@ export default function HomeScreen() {
             <Ionicons name="chevron-down" size={11} color={COLORS.textSecondary} />
           </TouchableOpacity>
           <View style={styles.headerRight}>
+            {isAuthenticated ? <TouchableOpacity style={styles.notificationBtn} onPress={() => navigation.navigate('Notifications')} activeOpacity={0.8} accessibilityLabel="შეტყობინებები"><Ionicons name="notifications-outline" size={19} color={COLORS.text}/>{notificationCount > 0 ? <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{notificationCount > 9 ? '9+' : notificationCount}</Text></View> : null}</TouchableOpacity> : null}
             {isAuthenticated ? (
               <TouchableOpacity
                 style={styles.avatarBtn}
@@ -572,6 +578,9 @@ const styles = StyleSheet.create({
   },
   locationText: { fontSize: 13, fontWeight: '700', color: COLORS.text },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginLeft: 'auto' },
+  notificationBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  notificationBadge: { position: 'absolute', top: -2, right: -2, minWidth: 15, height: 15, paddingHorizontal: 3, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: COLORS.background },
+  notificationBadgeText: { fontSize: 8, fontWeight: '900', color: '#fff' },
   avatarBtn: {
     width: 36,
     height: 36,

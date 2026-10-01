@@ -68,6 +68,7 @@ export default function HomeScreen() {
   const [recentlyViewed, setRecentlyViewed] = useState<Restaurant[]>([]);
   const [activeOffers, setActiveOffers] = useState<RestaurantOffer[]>([]);
   const [availableTonight, setAvailableTonight] = useState<Restaurant[]>([]);
+  const [recommended, setRecommended] = useState<Restaurant[]>([]);
   const [collections, setCollections] = useState<{ id:string; titleKa:string; subtitle?:string|null; emoji:string; accent:string; bg:string; filterType:string; filterValue?:string|null; isActive:boolean; sortOrder:number }[]>([]);
   const [loadError, setLoadError] = useState('');
   const [notificationCount, setNotificationCount] = useState(0);
@@ -83,13 +84,14 @@ export default function HomeScreen() {
     setLoading(true);
     setLoadError('');
     try {
-      const [popRes, newRes, cusRes, colRes, offerRes, availabilityRes] = await Promise.allSettled([
+      const [popRes, newRes, cusRes, colRes, offerRes, availabilityRes, recommendationRes] = await Promise.allSettled([
         restaurantsApi.getAll({ limit: 12, city: 'თბილისი' }),
         restaurantsApi.getAll({ limit: 8, city: 'თბილისი' }),
         cuisinesApi.getAll(),
         restaurantsApi.getCollections(),
         restaurantsApi.getOffers(undefined, new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }), undefined, 2),
         bookingsApi.availabilitySummary(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }), 2, 24),
+        (useAuthStore.getState().isAuthenticated ? restaurantsApi.getRecommendedForUser(12) : restaurantsApi.getRecommended(12)),
       ]);
       if (popRes.status === 'fulfilled') setPopular(popRes.value.data?.data || []);
       else setLoadError('რესტორნების ჩატვირთვა ვერ მოხერხდა. სცადე თავიდან.');
@@ -98,6 +100,7 @@ export default function HomeScreen() {
       if (colRes.status === 'fulfilled') setCollections((colRes.value.data || []).filter(x => x.isActive).sort((a,b) => a.sortOrder - b.sortOrder));
       if (offerRes.status === 'fulfilled') setActiveOffers(Array.isArray(offerRes.value.data) ? offerRes.value.data.filter(x => x.isActive) : []);
       if (availabilityRes.status === 'fulfilled') setAvailableTonight(availabilityRes.value.data?.restaurants || []);
+      if (recommendationRes.status === 'fulfilled') setRecommended(recommendationRes.value.data || []);
     } catch {
       setLoadError('მონაცემების ჩატვირთვა ვერ მოხერხდა. სცადე თავიდან.');
     }
@@ -252,6 +255,13 @@ export default function HomeScreen() {
             </View>
           </ScrollView>
         </View>
+
+        {recommended.length > 0 && (
+          <View style={styles.section}>
+            <SectionTitle title="შენთვის შერჩეული" onSeeAll={() => goToSearch()} />
+            <FlatList horizontal showsHorizontalScrollIndicator={false} data={recommended.slice(0,8)} keyExtractor={r=>r.id} contentContainerStyle={{paddingHorizontal:SPACING.md,gap:SPACING.md}} renderItem={({item})=><View style={{width:212}}><RestaurantCard restaurant={item}/></View>} />
+          </View>
+        )}
 
         {/* ─── Available tonight ───────────────────────────────────────── */}
         {availableTonight.length > 0 && (

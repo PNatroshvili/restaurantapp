@@ -34,11 +34,6 @@ const CUISINE_COLORS: Record<string, string> = {
   'Bakery': '#D4A017', 'Mexican': '#16A085', 'Indian': '#E53935',
 };
 
-const getDiscount = (id: string): number | null => {
-  const pool = [null, null, null, 10, null, 20, null, null, 30, null, 15, null, null, 25, null];
-  const idx = (id.charCodeAt(0) + id.charCodeAt(id.length - 1)) % pool.length;
-  return pool[idx];
-};
 
 const TODAY_CHIPS = ['დღეს', 'ხვალ', 'შაბ', 'კვი'];
 

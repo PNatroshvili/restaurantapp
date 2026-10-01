@@ -73,6 +73,8 @@ export interface Review {
   foodRating?: number | null;
   serviceRating?: number | null;
   ambienceRating?: number | null;
+  verified?: boolean;
+  photos?: { id: string; url: string; createdAt?: string }[];
   comment?: string;
   offerId?: string | null;
   discountPercentApplied?: number | null;

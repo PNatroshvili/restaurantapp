@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   rowMeta:{fontSize:10,color:COLORS.textSecondary},
   status:{fontSize:9,color:COLORS.success,fontWeight:'800'},
   delete:{width:34,height:34,borderRadius:10,backgroundColor:COLORS.error+'10',alignItems:'center',justifyContent:'center'},
-  empty:{alignItems:'center,justifyContent:center',paddingVertical:50},
+  empty:{alignItems:'center',justifyContent:'center',paddingVertical:50},
   emptyTitle:{fontSize:16,fontWeight:'900',color:COLORS.text},
   emptySub:{fontSize:12,lineHeight:19,color:COLORS.textSecondary,textAlign:'center',maxWidth:300,marginTop:4},
 });

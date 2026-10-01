@@ -24,10 +24,6 @@ const HERO_HEIGHT = 280;
 
 type RouteProps = RouteProp<RootStackParamList, 'RestaurantDetail'>;
 
-const getDiscount = (id: string): number | null => {
-  const pool = [null, null, null, 10, null, 20, null, null, 30, null, 15, null, null, 25, null];
-  return pool[(id.charCodeAt(0) + id.charCodeAt(id.length - 1)) % pool.length];
-};
 
 export default function RestaurantDetailScreen() {
   const route = useRoute<RouteProps>();
@@ -131,7 +127,7 @@ export default function RestaurantDetailScreen() {
   const score = rating.toFixed(1);
   const scoreNum = rating;
   const scoreColor = scoreNum >= 4.5 ? '#00C896' : scoreNum >= 3.5 ? '#F59E0B' : COLORS.textSecondary;
-  const discount = getDiscount(id);
+  const discount = Number(restaurant?.discountPercent || 0) || null;
   const today = new Date().getDay();
   const todayHours = restaurant.workingHours?.find(wh => wh.day === today);
 

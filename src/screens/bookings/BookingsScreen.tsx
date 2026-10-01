@@ -102,7 +102,8 @@ export default function BookingsScreen() {
 
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
-    const socket = io(`${SOCKET_URL}/bookings`, { path: '/socket.io', transports: ['websocket'] });
+    const token = useAuthStore.getState().accessToken || '';
+    const socket = io(`${SOCKET_URL}/bookings`, { path: '/socket.io', transports: ['websocket'], auth: { token } });
     socketRef.current = socket;
     socket.emit('joinUserRoom', user.id);
     socket.on('bookingUpdated', (updated: Booking) => {

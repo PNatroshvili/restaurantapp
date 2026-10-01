@@ -138,9 +138,9 @@ function MainTabs() {
           paddingTop: 6,
           elevation: 24,
           shadowColor: '#000',
-          shadowOpacity: 0.5,
-          shadowOffset: { width: 0, height: -3 },
-          shadowRadius: 16,
+          shadowOpacity: 0.14,
+          shadowOffset: { width: 0, height: -2 },
+          shadowRadius: 12,
         },
       }}
     >

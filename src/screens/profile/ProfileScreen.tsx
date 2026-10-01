@@ -220,6 +220,11 @@ export default function ProfileScreen() {
             label="ფავორიტები"
             badge={favoritesCount > 0 ? String(favoritesCount) : undefined}
             onPress={() => navigation.navigate('Main', { screen: 'Favorites' } as any)}
+          />
+          <MenuRow
+            icon="hourglass-outline"
+            label="მოლოდინის სია"
+            onPress={() => navigation.navigate('Waitlist')}
             last
           />
         </View>

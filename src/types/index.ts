@@ -24,6 +24,8 @@ export interface Restaurant {
   longitude: number;
   phone?: string;
   discountPercent?: number;
+  avgMenuPrice?: number | null;
+  priceLevel?: 1 | 2 | 3 | null;
   ratingAvg: number;
   reviewsCount?: number;
   status: 'draft' | 'pending' | 'approved' | 'rejected' | 'suspended';

@@ -11,6 +11,7 @@ import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../../types';
 import { COLORS, SPACING, RADIUS } from '../../constants';
+import LukmaLogo from '../../components/common/LukmaLogo';
 
 const { width } = Dimensions.get('window');
 
@@ -70,6 +71,10 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
+
+      <View style={styles.brand}>
+        <LukmaLogo size={54} />
+      </View>
 
       {/* Skip */}
       <TouchableOpacity style={styles.skip} onPress={finish}>
@@ -131,6 +136,7 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
 
+  brand: { alignItems: 'center', paddingTop: SPACING.md, paddingBottom: 2 },
   skip: { alignSelf: 'flex-end', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md },
   skipText: { fontSize: 14, color: COLORS.textSecondary, fontWeight: '600' },
 

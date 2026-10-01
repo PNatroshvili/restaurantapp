@@ -48,15 +48,6 @@ function getTimeGreeting() {
   return { title: 'გვიანი ვახშამი', subtitle: 'ახლა ღია', emoji: '⭐' };
 }
 
-// Curated collections — frontend-only, filter from existing data
-const COLLECTIONS = [
-  { id: 'romantic',  emoji: '💑',  title: 'წყვილებისთვის',  subtitle: 'რომანტიული ვახშამი',      accent: '#D35839', bg: '#FFF5F1' },
-  { id: 'family',    emoji: '👨‍👩‍👧', title: 'ოჯახური',        subtitle: 'ბავშვებისთვის',          accent: '#2AA876', bg: '#F1F8F4' },
-  { id: 'premium',   emoji: '✨',   title: 'პრემიუმ',         subtitle: 'ლუქს გამოცდილება',        accent: '#B07A21', bg: '#FAF3E6' },
-  { id: 'quick',     emoji: '⚡',   title: 'სწრაფი',          subtitle: '30 წუთამდე',              accent: '#4B6EA8', bg: '#EEF3FA' },
-  { id: 'hidden',    emoji: '🗝️',  title: 'ფარული',          subtitle: 'ადგილობრივის საიდუმლო',   accent: '#8B5A83', bg: '#F7EFF5' },
-];
-
 const georgiansFirst = (list: Restaurant[]) => [
   ...list.filter(r => r.cuisine?.name?.toLowerCase().includes('georgian') || r.cuisine?.slug?.includes('georgian')),
   ...list.filter(r => !r.cuisine?.name?.toLowerCase().includes('georgian') && !r.cuisine?.slug?.includes('georgian')),
@@ -76,6 +67,7 @@ export default function HomeScreen() {
   const [recentlyViewed, setRecentlyViewed] = useState<Restaurant[]>([]);
   const [activeOffers, setActiveOffers] = useState<RestaurantOffer[]>([]);
   const [availableTonight, setAvailableTonight] = useState<Restaurant[]>([]);
+  const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -86,6 +78,7 @@ export default function HomeScreen() {
 
   const load = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const [popRes, newRes, cusRes, offerRes, availabilityRes] = await Promise.all([
         restaurantsApi.getAll({ limit: 12, city: 'თბილისი' }),
@@ -99,7 +92,9 @@ export default function HomeScreen() {
       setCuisines(Array.isArray(cusRes.data) ? cusRes.data : []);
       setActiveOffers(Array.isArray(offerRes.data) ? offerRes.data.filter(x => x.isActive) : []);
       setAvailableTonight(availabilityRes.data?.restaurants || []);
-    } catch {}
+    } catch {
+      setLoadError('მონაცემების ჩატვირთვა ვერ მოხერხდა. სცადე თავიდან.');
+    }
     setLoading(false);
   };
 
@@ -189,6 +184,8 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
       >
+
+        {loadError ? <View style={styles.errorBanner}><Ionicons name="warning-outline" size={16} color={COLORS.primary}/><Text style={styles.errorBannerText}>{loadError}</Text><TouchableOpacity onPress={load}><Text style={styles.errorRetry}>თავიდან</Text></TouchableOpacity></View> : null}
 
         {/* ─── Header ──────────────────────────────────────────────────── */}
         <View style={styles.header}>
@@ -715,6 +712,9 @@ const styles = StyleSheet.create({
 
   // Generic section
   section: { marginBottom: SPACING.lg },
+  errorBanner: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, padding: SPACING.sm, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary + '33', backgroundColor: COLORS.primaryLight, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  errorBannerText: { flex: 1, fontSize: 11, color: COLORS.textSecondary },
+  errorRetry: { fontSize: 11, color: COLORS.primary, fontWeight: '800' },
   sectionSub: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', marginTop: 1 },
   availabilityRow: { flexDirection: 'row', gap: 5, marginTop: 7 },
   availabilityChip: { flex: 1, minHeight: 30, borderRadius: 9, borderWidth: 1, borderColor: COLORS.primary + '44', backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 3 },

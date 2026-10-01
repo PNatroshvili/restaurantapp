@@ -36,6 +36,7 @@ export default function RestaurantDetailScreen() {
   const [menu, setMenu] = useState<MenuCategory[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [events, setEvents] = useState<RestaurantEvent[]>([]);
+  const [offers, setOffers] = useState<import('../../types').RestaurantOffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFav, setIsFav] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'menu' | 'reviews'>('info');
@@ -68,6 +69,7 @@ export default function RestaurantDetailScreen() {
           if (mRes.status === 'fulfilled') setMenu(mRes.value.data || []);
           if (revRes.status === 'fulfilled') setReviews(revRes.value.data?.data || []);
           eventsApi.getForRestaurant(id).then(r => setEvents(r.data)).catch(() => {});
+          restaurantsApi.getOffers(id).then(r => setOffers((r.data || []).filter(x => x.isActive))).catch(() => {});
         }
       } catch {
         Alert.alert('შეცდომა', 'ინფორმაცია ვერ ჩაიტვირთა');
@@ -335,6 +337,13 @@ export default function RestaurantDetailScreen() {
                     <Text style={styles.offerTitle}>{discount}% ფასდაკლება</Text>
                     <Text style={styles.offerSub}>ჯავშნის გაკეთებისას</Text>
                   </View>
+                </View>
+              )}
+
+              {offers.length > 0 && (
+                <View style={styles.eventsBlock}>
+                  <Text style={styles.eventsSectionTitle}>სპეციალური შეთავაზებები</Text>
+                  {offers.slice(0, 3).map(offer => <View key={offer.id} style={styles.offerBlock}><Ionicons name="pricetag-outline" size={18} color={COLORS.primary} /><View style={{flex:1}}><Text style={styles.offerTitle}>{offer.title}</Text><Text style={styles.offerSub}>{offer.description || (offer.discountPercent ? `${offer.discountPercent}% ფასდაკლება` : 'სპეციალური შეთავაზება')}</Text></View></View>)}
                 </View>
               )}
 

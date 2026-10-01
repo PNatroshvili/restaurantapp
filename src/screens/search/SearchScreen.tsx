@@ -38,10 +38,6 @@ function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): num
 const HISTORY_KEY = 'search_history';
 const MAX_HISTORY = 5;
 
-const getDiscount = (id: string): number | null => {
-  const pool = [null, null, null, 10, null, 20, null, null, 30, null, 15, null, null, 25, null];
-  return pool[(id.charCodeAt(0) + id.charCodeAt(id.length - 1)) % pool.length];
-};
 
 const coverOf = (r: Restaurant): string | null =>
   r.cover_photo || r.coverPhoto || r.photos?.find(p => p.isCover)?.url || r.photos?.[0]?.url || null;
@@ -213,7 +209,7 @@ export default function SearchScreen() {
     if (filterRating && Number(r.ratingAvg) < filterRating) return false;
     if (filterCuisine && r.cuisine?.id !== filterCuisine && (r as any).cuisineId !== filterCuisine) return false;
     if (filterPrice && (r as any).priceLevel && (r as any).priceLevel !== filterPrice) return false;
-    if (filterDiscount && getDiscount(r.id) === null) return false;
+    if (filterDiscount && Number(r.discountPercent || 0) || null === null) return false;
     if (filterDietary.size > 0) {
       const haystack = `${r.name} ${r.description || ''} ${r.cuisine?.name || ''}`.toLowerCase();
       if (![...filterDietary].every(key => DIETARY_OPTIONS.find(d => d.key === key)?.keywords.some(kw => haystack.includes(kw)))) return false;
@@ -598,7 +594,7 @@ function SearchCard({ restaurant: r, navigation, userLocation }: { restaurant: R
   const rating = Number(r.ratingAvg) || 0;
   const score = rating.toFixed(1);
   const sc = scoreColor(rating);
-  const discount = getDiscount(r.id);
+  const discount = Number(r.discountPercent || 0) || null;
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start();

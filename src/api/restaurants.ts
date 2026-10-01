@@ -33,6 +33,8 @@ export const restaurantsApi = {
   getReviews: (id: string, page = 1) =>
     apiClient.get<PaginatedResponse<Review>>('/reviews', { params: { restaurant_id: id, page } }),
 
+  getRecommended: (limit = 12) => apiClient.get<Restaurant[]>('/restaurants/recommended', { params: { limit } }),
+  getRecommendedForUser: (limit = 12) => apiClient.get<Restaurant[]>('/restaurants/recommended/me', { params: { limit } }),
   getOffers: (id?: string, date?: string, time?: string, guests = 1) =>
     apiClient.get<RestaurantOffer[]>('/offers', { params: { restaurant_id: id, date, time, guests } }),
   getCollections: () => apiClient.get<{ id:string; titleKa:string; subtitle?:string|null; emoji:string; accent:string; bg:string; filterType:string; filterValue?:string|null; isActive:boolean; sortOrder:number }[]>('/collections'),

@@ -81,6 +81,18 @@ export interface Review {
   user?: Pick<User, 'id' | 'name' | 'avatar'>;
 }
 
+export interface RestaurantTable {
+  id: string;
+  restaurantId: string;
+  name: string;
+  capacity: number;
+  shape: 'round' | 'square' | 'rectangle';
+  posX: number;
+  posY: number;
+  zone?: string | null;
+  isActive: boolean;
+}
+
 export interface RestaurantOffer {
   id: string;
   restaurantId: string;

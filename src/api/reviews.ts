@@ -15,3 +15,8 @@ export async function uploadReviewPhoto(reviewId: string, uri: string) {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 }
+
+
+export async function replyToReview(reviewId: string, reply: string) {
+  return apiClient.patch("/reviews/" + encodeURIComponent(reviewId) + "/reply", { reply });
+}

@@ -85,6 +85,7 @@ export default function ManagerScreen() {
       const [bRes, rRes, aRes] = await Promise.allSettled([
         bookingsApi.getMyRestaurant(),
         managerApi.getMyRestaurant(),
+        managerApi.getAnalytics(),
       ]);
       if (bRes.status === 'fulfilled') setBookings(bRes.value.data);
       if (rRes.status === 'fulfilled') setRestaurant(rRes.value.data);

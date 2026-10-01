@@ -76,6 +76,7 @@ export default function SearchScreen() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [cuisines, setCuisines] = useState<Cuisine[]>([]);
   const [searchError, setSearchError] = useState('');
+  const [searchRetry, setSearchRetry] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(route.params?.dishQuery || '');
   const [inputFocused, setInputFocused] = useState(false);
@@ -161,7 +162,7 @@ export default function SearchScreen() {
       }
     }, 220);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [searchQuery, filterCuisine, filterRating, filterOpen, filterDiscount, filterNearMe, userLocation, sortKey]);
+  }, [searchQuery, filterCuisine, filterRating, filterOpen, filterDiscount, filterNearMe, userLocation, sortKey, searchRetry]);
 
   const saveHistory = useCallback(async (query: string) => {
     const q = query.trim();
@@ -414,7 +415,7 @@ export default function SearchScreen() {
       )}
 
       {/* ── Results bar ── */}
-      {searchError ? <View style={styles.searchErrorBanner}><Ionicons name="warning-outline" size={15} color={COLORS.primary}/><Text style={styles.searchErrorText}>{searchError}</Text><TouchableOpacity onPress={() => { setSearchError(''); setSearchQuery(v => v + ' '); }}><Text style={styles.searchRetry}>Retry</Text></TouchableOpacity></View> : null}
+      {searchError ? <View style={styles.searchErrorBanner}><Ionicons name="warning-outline" size={15} color={COLORS.primary}/><Text style={styles.searchErrorText}>{searchError}</Text><TouchableOpacity onPress={() => { setSearchError(''); setSearchRetry(v => v + 1); }}><Text style={styles.searchRetry}>Retry</Text></TouchableOpacity></View> : null}
 
       <View style={styles.resultsBar}>
         <Text style={styles.resultsCount}>

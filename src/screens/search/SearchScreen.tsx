@@ -208,8 +208,11 @@ export default function SearchScreen() {
     if (filterOpen && !r.isOpen) return false;
     if (filterRating && Number(r.ratingAvg) < filterRating) return false;
     if (filterCuisine && r.cuisine?.id !== filterCuisine && (r as any).cuisineId !== filterCuisine) return false;
-    if (filterPrice && (r as any).priceLevel && (r as any).priceLevel !== filterPrice) return false;
-    if (filterDiscount && Number(r.discountPercent || 0) || null === null) return false;
+    if (filterPrice) {
+      const level = Number((r as any).priceLevel || 0) || (Number(r.avgMenuPrice) > 0 ? (Number(r.avgMenuPrice) < 15 ? 1 : Number(r.avgMenuPrice) < 30 ? 2 : 3) : 0);
+      if (level !== filterPrice) return false;
+    }
+    if (filterDiscount && Number(r.discountPercent || 0) <= 0) return false;
     if (filterDietary.size > 0) {
       const haystack = `${r.name} ${r.description || ''} ${r.cuisine?.name || ''}`.toLowerCase();
       if (![...filterDietary].every(key => DIETARY_OPTIONS.find(d => d.key === key)?.keywords.some(kw => haystack.includes(kw)))) return false;

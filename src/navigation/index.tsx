@@ -27,6 +27,7 @@ import BookingScreen from '../screens/booking/BookingScreen';
 import ReviewCreateScreen from '../screens/restaurant/ReviewCreateScreen';
 import ProfileEditScreen from '../screens/profile/ProfileEditScreen';
 import NotificationsScreen from '../screens/profile/NotificationsScreen';
+import WaitlistScreen from '../screens/profile/WaitlistScreen';
 import PrivacyScreen from '../screens/legal/PrivacyScreen';
 import TermsScreen from '../screens/legal/TermsScreen';
 import AboutScreen from '../screens/about/AboutScreen';

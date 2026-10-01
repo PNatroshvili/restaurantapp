@@ -9,12 +9,12 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../../store/authStore';
 import { chatApi, ChatMessage } from '../../api/chat';
-import { COLORS, SPACING, RADIUS } from '../../constants';
+import { API_BASE_URL, COLORS, SPACING, RADIUS } from '../../constants';
 import { RootStackParamList } from '../../types';
 
 type RouteProps = RouteProp<RootStackParamList, 'Chat'>;
 
-const SOCKET_URL = 'https://api.skup.ge';
+const SOCKET_URL = API_BASE_URL.replace(/\/v1\/?$/, '');
 
 export default function ChatScreen() {
   const navigation = useNavigation();
@@ -24,18 +24,21 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
     chatApi.getMessages(bookingId)
       .then(r => setMessages(r.data))
-      .catch(() => {})
+      .catch(() => setError('ჩატის ჩატვირთვა ვერ მოხერხდა'));
       .finally(() => setLoading(false));
 
     const socket = io(`${SOCKET_URL}/chat`, { path: '/socket.io', transports: ['websocket'] });
     socketRef.current = socket;
     socket.emit('joinBookingRoom', bookingId);
+    socket.on('connect_error', () => setError('ჩატთან დაკავშირება ვერ მოხერხდა'));
     socket.on('newMessage', (msg: ChatMessage) => {
       setMessages(prev => [...prev, msg]);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
@@ -69,6 +72,7 @@ export default function ChatScreen() {
         </View>
       </View>
 
+      {error ? <View style={styles.errorBanner}><Ionicons name="warning-outline" size={15} color={COLORS.error}/><Text style={styles.errorText}>{error}</Text></View> : null}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {loading ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -120,9 +124,9 @@ export default function ChatScreen() {
             onSubmitEditing={send}
           />
           <TouchableOpacity
-            style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
             onPress={send}
-            disabled={!text.trim()}
+            disabled={!text.trim() || sending}
           >
             <Ionicons name="send" size={20} color="#fff" />
           </TouchableOpacity>
@@ -154,6 +158,8 @@ const styles = StyleSheet.create({
   msgTime: { fontSize: 10, color: COLORS.textMuted, marginTop: 4, alignSelf: 'flex-end' },
   msgTimeMe: { color: 'rgba(255,255,255,0.7)' },
 
+  errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, backgroundColor: COLORS.error + '10', borderBottomWidth: 1, borderBottomColor: COLORS.error + '22' },
+  errorText: { flex: 1, fontSize: 11, color: COLORS.error },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: SPACING.sm, padding: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.surface },
   input: { flex: 1, minHeight: 44, maxHeight: 120, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.md, paddingVertical: 10, fontSize: 15, color: COLORS.text, backgroundColor: COLORS.background },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },

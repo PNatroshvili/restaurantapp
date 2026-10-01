@@ -82,18 +82,19 @@ export default function HomeScreen() {
     setLoading(true);
     setLoadError('');
     try {
-      const [popRes, newRes, cusRes, offerRes, availabilityRes] = await Promise.all([
+      const [popRes, newRes, cusRes, offerRes, availabilityRes] = await Promise.allSettled([
         restaurantsApi.getAll({ limit: 12, city: 'თბილისი' }),
         restaurantsApi.getAll({ limit: 8, city: 'თბილისი' }),
         cuisinesApi.getAll(),
         restaurantsApi.getOffers(undefined, new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }), undefined, 2),
         bookingsApi.availabilitySummary(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }), 2, 24),
       ]);
-      setPopular(popRes.data?.data || []);
-      setNewest(newRes.data?.data || []);
-      setCuisines(Array.isArray(cusRes.data) ? cusRes.data : []);
-      setActiveOffers(Array.isArray(offerRes.data) ? offerRes.data.filter(x => x.isActive) : []);
-      setAvailableTonight(availabilityRes.data?.restaurants || []);
+      if (popRes.status === 'fulfilled') setPopular(popRes.value.data?.data || []);
+      else setLoadError('რესტორნების ჩატვირთვა ვერ მოხერხდა. სცადე თავიდან.');
+      if (newRes.status === 'fulfilled') setNewest(newRes.value.data?.data || []);
+      if (cusRes.status === 'fulfilled') setCuisines(Array.isArray(cusRes.value.data) ? cusRes.value.data : []);
+      if (offerRes.status === 'fulfilled') setActiveOffers(Array.isArray(offerRes.value.data) ? offerRes.value.data.filter(x => x.isActive) : []);
+      if (availabilityRes.status === 'fulfilled') setAvailableTonight(availabilityRes.value.data?.restaurants || []);
     } catch {
       setLoadError('მონაცემების ჩატვირთვა ვერ მოხერხდა. სცადე თავიდან.');
     }

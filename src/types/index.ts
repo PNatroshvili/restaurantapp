@@ -159,6 +159,7 @@ export type RootStackParamList = {
   ManagerMenu: { restaurantId: string };
   ManagerPhotos: { restaurantId: string };
   ManagerDiscounts: { restaurantId: string };
+  ManagerOffers: { restaurantId: string };
   ManagerEvents: { restaurantId: string };
   Chat: { bookingId: string; restaurantName: string };
 };

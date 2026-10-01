@@ -70,6 +70,8 @@ export interface Review {
   restaurantId: string;
   rating: number;
   comment?: string;
+  offerId?: string | null;
+  discountPercentApplied?: number | null;
   status: 'pending' | 'approved' | 'hidden';
   createdAt: string;
   user?: Pick<User, 'id' | 'name' | 'avatar'>;

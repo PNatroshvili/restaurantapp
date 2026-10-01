@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { PaginatedResponse, Restaurant, MenuCategory, Review, Cuisine, MenuItem, WorkingHour, RestaurantPhoto } from '../types';
+import { PaginatedResponse, Restaurant, MenuCategory, Review, Cuisine, MenuItem, WorkingHour, RestaurantPhoto, RestaurantOffer } from '../types';
 
 export interface RestaurantFilters {
   city?: string;
@@ -27,6 +27,9 @@ export const restaurantsApi = {
 
   getReviews: (id: string, page = 1) =>
     apiClient.get<PaginatedResponse<Review>>('/reviews', { params: { restaurant_id: id, page } }),
+
+  getOffers: (id: string, date?: string, time?: string, guests = 1) =>
+    apiClient.get<RestaurantOffer[]>('/offers', { params: { restaurant_id: id, date, time, guests } }),
 
   addFavorite: (restaurantId: string) => apiClient.post(`/favorites`, { restaurant_id: restaurantId }),
   removeFavorite: (restaurantId: string) => apiClient.delete(`/favorites/${restaurantId}`),

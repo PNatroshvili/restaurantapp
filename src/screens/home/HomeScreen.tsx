@@ -50,11 +50,11 @@ function getTimeGreeting() {
 
 // Curated collections — frontend-only, filter from existing data
 const COLLECTIONS = [
-  { id: 'romantic',  emoji: '💑',  title: 'წყვილებისთვის',  subtitle: 'რომანტიული ვახშამი',      accent: '#8B4FCE', bg: '#1A0D2D' },
-  { id: 'family',    emoji: '👨‍👩‍👧', title: 'ოჯახური',        subtitle: 'ბავშვებისთვის',          accent: '#27AE60', bg: '#0D2018' },
-  { id: 'premium',   emoji: '✨',   title: 'პრემიუმ',         subtitle: 'ლუქს გამოცდილება',        accent: '#F59E0B', bg: '#241800' },
-  { id: 'quick',     emoji: '⚡',   title: 'სწრაფი',          subtitle: '30 წუთამდე',              accent: '#3B82F6', bg: '#0A1528' },
-  { id: 'hidden',    emoji: '🗝️',  title: 'ფარული',          subtitle: 'ადგილობრივის საიდუმლო',   accent: '#EC4899', bg: '#1F0A1A' },
+  { id: 'romantic',  emoji: '💑',  title: 'წყვილებისთვის',  subtitle: 'რომანტიული ვახშამი',      accent: '#D35839', bg: '#FFF5F1' },
+  { id: 'family',    emoji: '👨‍👩‍👧', title: 'ოჯახური',        subtitle: 'ბავშვებისთვის',          accent: '#2AA876', bg: '#F1F8F4' },
+  { id: 'premium',   emoji: '✨',   title: 'პრემიუმ',         subtitle: 'ლუქს გამოცდილება',        accent: '#B07A21', bg: '#FAF3E6' },
+  { id: 'quick',     emoji: '⚡',   title: 'სწრაფი',          subtitle: '30 წუთამდე',              accent: '#4B6EA8', bg: '#EEF3FA' },
+  { id: 'hidden',    emoji: '🗝️',  title: 'ფარული',          subtitle: 'ადგილობრივის საიდუმლო',   accent: '#8B5A83', bg: '#F7EFF5' },
 ];
 
 const georgiansFirst = (list: Restaurant[]) => [

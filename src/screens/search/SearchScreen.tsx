@@ -75,6 +75,7 @@ export default function SearchScreen() {
 
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [cuisines, setCuisines] = useState<Cuisine[]>([]);
+  const [searchError, setSearchError] = useState('');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(route.params?.dishQuery || '');
   const [inputFocused, setInputFocused] = useState(false);
@@ -136,6 +137,7 @@ export default function SearchScreen() {
     let cancelled = false;
     const timer = setTimeout(async () => {
       setLoading(true);
+      setSearchError('');
       try {
         const res = await restaurantsApi.getAll({
           city: 'თბილისი',
@@ -153,7 +155,7 @@ export default function SearchScreen() {
         });
         if (!cancelled) setRestaurants(res.data?.data || []);
       } catch {
-        if (!cancelled) setRestaurants([]);
+        if (!cancelled) { setRestaurants([]); setSearchError('რესტორნების ძიება ვერ მოხერხდა. სცადე თავიდან.'); }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -412,6 +414,8 @@ export default function SearchScreen() {
       )}
 
       {/* ── Results bar ── */}
+      {searchError ? <View style={styles.searchErrorBanner}><Ionicons name="warning-outline" size={15} color={COLORS.primary}/><Text style={styles.searchErrorText}>{searchError}</Text><TouchableOpacity onPress={() => { setSearchError(''); setSearchQuery(v => v + ' '); }}><Text style={styles.searchRetry}>Retry</Text></TouchableOpacity></View> : null}
+
       <View style={styles.resultsBar}>
         <Text style={styles.resultsCount}>
           {loading ? 'იტვირთება...' : `${displayResults.length} რესტორანი`}
@@ -765,6 +769,9 @@ const styles = StyleSheet.create({
   ratingStar: { alignItems: 'center', gap: 4, flex: 1 },
   ratingStarNum: { fontSize: 10, color: COLORS.textSecondary, fontWeight: '600' },
 
+  searchErrorBanner: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, paddingHorizontal: SPACING.sm, paddingVertical: 8, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary + '33', backgroundColor: COLORS.primaryLight, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  searchErrorText: { flex: 1, fontSize: 11, color: COLORS.textSecondary },
+  searchRetry: { fontSize: 11, fontWeight: '800', color: COLORS.primary },
   resultsBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: SPACING.md, paddingVertical: 10,

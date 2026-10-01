@@ -70,6 +70,9 @@ export interface Review {
   userId: string;
   restaurantId: string;
   rating: number;
+  foodRating?: number | null;
+  serviceRating?: number | null;
+  ambienceRating?: number | null;
   comment?: string;
   offerId?: string | null;
   discountPercentApplied?: number | null;

@@ -31,6 +31,7 @@ export interface Restaurant {
   status: 'draft' | 'pending' | 'approved' | 'rejected' | 'suspended';
   distance?: number;
   isOpen?: boolean;
+  availableTimes?: string[];
   coverPhoto?: string;
   cover_photo?: string; // returned by mapCoverPhoto in service
   photos?: RestaurantPhoto[];

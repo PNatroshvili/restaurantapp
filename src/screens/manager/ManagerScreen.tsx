@@ -36,6 +36,7 @@ const MANAGE_CARDS: {
   { icon: 'time-outline',               label: 'სამუშაო საათები', sub: 'გახსნისა და დახურვის დრო',        color: '#27AE60', route: 'ManagerWorkingHours' },
   { icon: 'pricetag-outline',           label: 'ფასდაკლება',     sub: 'პროცენტული ფასდაკლება',           color: '#C0392B', route: 'ManagerDiscounts' },
   { icon: 'megaphone-outline',          label: 'შეთავაზებები',   sub: 'დროებითი აქციები და პირობები',      color: '#D35839', route: 'ManagerOffers' },
+  { icon: 'hourglass-outline',          label: 'მოლოდინის სია',  sub: 'თავისუფალი მაგიდის მომლოდინე სტუმრები', color: '#8E44AD', route: 'ManagerWaitlist' },
   { icon: 'megaphone-outline',          label: 'ღონისძიებები',   sub: 'სპეციალური შეთავაზებები',         color: '#9B59B6', route: 'ManagerEvents' },
 ];
 

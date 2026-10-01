@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, RefreshControl, Act
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { notificationsApi, UserNotification } from '../../api/notifications';
 import { COLORS, RADIUS, SPACING } from '../../constants';
 import { showToast } from '../../components/common/Toast';
+import { RootStackParamList } from '../../types';
 
 function relativeTime(value: string) {
   const diff = Math.max(0, Date.now() - new Date(value).getTime());
@@ -18,7 +20,7 @@ function relativeTime(value: string) {
 }
 
 export default function NotificationsScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [items, setItems] = useState<UserNotification[]>([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -40,6 +42,22 @@ export default function NotificationsScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const openNotification = async (item: UserNotification) => {
+    await markRead(item);
+    const data = item.data || {};
+    if (typeof data.restaurantId === 'string') {
+      navigation.navigate('RestaurantDetail', { id: data.restaurantId });
+      return;
+    }
+    if (typeof data.bookingId === 'string') {
+      navigation.navigate('Main', { screen: 'Bookings' });
+      return;
+    }
+    if (typeof data.waitlistId === 'string') {
+      navigation.navigate('Waitlist');
+    }
+  };
 
   const markRead = async (item: UserNotification) => {
     if (item.readAt) return;
@@ -78,7 +96,7 @@ export default function NotificationsScreen() {
         ListHeaderComponent={error ? <View style={styles.error}><Text style={styles.errorText}>{error}</Text><TouchableOpacity onPress={() => load()}><Text style={styles.retry}>თავიდან</Text></TouchableOpacity></View> : null}
         ListEmptyComponent={<View style={styles.empty}><Ionicons name="notifications-off-outline" size={46} color={COLORS.textMuted}/><Text style={styles.emptyTitle}>შეტყობინებები ჯერ არ არის</Text><Text style={styles.emptySub}>აქ გამოჩნდება ჯავშნების, შეთავაზებების და ანგარიშის განახლებები.</Text></View>}
         renderItem={({ item }) => (
-          <TouchableOpacity style={[styles.row, !item.readAt && styles.unreadRow]} onPress={() => markRead(item)} activeOpacity={0.78}>
+          <TouchableOpacity style={[styles.row, !item.readAt && styles.unreadRow]} onPress={() => openNotification(item)} activeOpacity={0.78}>
             <View style={styles.icon}><Ionicons name={item.type.startsWith('booking') ? 'calendar-outline' : 'notifications-outline'} size={19} color={COLORS.primary}/></View>
             <View style={styles.copy}><Text style={styles.rowTitle}>{item.title}</Text><Text style={styles.body}>{item.body}</Text><Text style={styles.time}>{relativeTime(item.createdAt)}</Text></View>
             {!item.readAt ? <View style={styles.dot}/> : null}

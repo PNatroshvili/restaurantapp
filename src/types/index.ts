@@ -144,6 +144,7 @@ export type RootStackParamList = {
   Booking: { restaurantId: string; restaurantName: string };
   ReviewCreate: { restaurantId: string };
   ProfileEdit: undefined;
+  Notifications: undefined;
   Search: { cuisineId?: string; cuisineName?: string; dishQuery?: string } | undefined;
   Login: undefined;
   Register: undefined;

@@ -35,7 +35,8 @@ export default function ChatScreen() {
       .catch(() => setError('ჩატის ჩატვირთვა ვერ მოხერხდა'));
       .finally(() => setLoading(false));
 
-    const socket = io(`${SOCKET_URL}/chat`, { path: '/socket.io', transports: ['websocket'] });
+    const token = useAuthStore.getState().accessToken || '';
+    const socket = io(`${SOCKET_URL}/chat`, { path: '/socket.io', transports: ['websocket'], auth: { token } });
     socketRef.current = socket;
     socket.emit('joinBookingRoom', bookingId);
     socket.on('connect_error', () => setError('ჩატთან დაკავშირება ვერ მოხერხდა'));

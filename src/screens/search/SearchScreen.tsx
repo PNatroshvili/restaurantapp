@@ -126,21 +126,40 @@ export default function SearchScreen() {
   useEffect(() => {
     inputRef.current?.focus();
     AsyncStorage.getItem(HISTORY_KEY).then(v => { if (v) setHistory(JSON.parse(v)); });
-    (async () => {
-      try {
-        const [restRes, cusRes] = await Promise.allSettled([
-          restaurantsApi.getAll({ city: 'თბილისი', limit: 2000 }),
-          cuisinesApi.getAll(),
-        ]);
-        if (restRes.status === 'fulfilled') setRestaurants(restRes.value.data?.data || []);
-        if (cusRes.status === 'fulfilled') {
-          const raw: Cuisine[] = Array.isArray(cusRes.value.data) ? cusRes.value.data : [];
-          setCuisines(raw.sort((a, b) => (a.name?.toLowerCase().includes('ქართ') ? -1 : 0) - (b.name?.toLowerCase().includes('ქართ') ? -1 : 0)));
-        }
-      } catch {}
-      setLoading(false);
-    })();
+    cuisinesApi.getAll().then(res => {
+      const raw: Cuisine[] = Array.isArray(res.data) ? res.data : [];
+      setCuisines(raw.sort((a, b) => (a.name?.toLowerCase().includes('ქართ') ? -1 : 0) - (b.name?.toLowerCase().includes('ქართ') ? -1 : 0)));
+    }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await restaurantsApi.getAll({
+          city: 'თბილისი',
+          q: searchQuery.trim() || undefined,
+          cuisine_id: filterCuisine || undefined,
+          min_rating: filterRating || undefined,
+          is_open: filterOpen || undefined,
+          offers: filterDiscount || undefined,
+          lat: filterNearMe ? userLocation?.lat : undefined,
+          lng: filterNearMe ? userLocation?.lng : undefined,
+          radius: filterNearMe ? 5000 : undefined,
+          sort: sortKey === 'distance' ? 'distance' : sortKey,
+          page: 1,
+          limit: 100,
+        });
+        if (!cancelled) setRestaurants(res.data?.data || []);
+      } catch {
+        if (!cancelled) setRestaurants([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 220);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searchQuery, filterCuisine, filterRating, filterOpen, filterDiscount, filterNearMe, userLocation, sortKey]);
 
   const saveHistory = useCallback(async (query: string) => {
     const q = query.trim();

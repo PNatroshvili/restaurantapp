@@ -159,7 +159,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Main: { screen?: keyof MainTabParamList; params?: any } | undefined;
   RestaurantDetail: { id: string };
-  Booking: { restaurantId: string; restaurantName: string };
+  Booking: { restaurantId: string; restaurantName?: string; restaurantImage?: string; date?: string; time?: string; guests?: number };
   ReviewCreate: { restaurantId: string };
   ProfileEdit: undefined;
   Notifications: undefined;

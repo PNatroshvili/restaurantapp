@@ -75,6 +75,21 @@ export interface Review {
   user?: Pick<User, 'id' | 'name' | 'avatar'>;
 }
 
+export interface RestaurantOffer {
+  id: string;
+  restaurantId: string;
+  title: string;
+  description?: string;
+  discountPercent?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  minimumGuests?: number | null;
+  maximumGuests?: number | null;
+  isActive: boolean;
+}
+
 export interface Booking {
   id: string;
   userId: string;

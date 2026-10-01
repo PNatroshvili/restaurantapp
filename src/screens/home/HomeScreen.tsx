@@ -112,17 +112,8 @@ export default function HomeScreen() {
       const last = await Location.getLastKnownPositionAsync();
       const loc = last ?? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
       const { latitude, longitude } = loc.coords;
-      const res = await restaurantsApi.getAll({ city: 'თბილისი', limit: 50 });
-      const all = res.data?.data || [];
-      const withDist = all
-        .map(r => {
-          const dlat = Number(r.latitude) - latitude;
-          const dlng = Number(r.longitude) - longitude;
-          return { ...r, _dist: Math.sqrt(dlat * dlat + dlng * dlng) };
-        })
-        .sort((a, b) => a._dist - b._dist)
-        .slice(0, 10);
-      setNearby(withDist);
+      const res = await restaurantsApi.getAll({ lat: latitude, lng: longitude, radius: 5000, sort: 'distance', limit: 10 });
+      setNearby(res.data?.data || []);
     } catch {}
     setNearbyLoading(false);
   };

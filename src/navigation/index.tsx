@@ -37,6 +37,7 @@ import ManagerWorkingHoursScreen from '../screens/manager/ManagerWorkingHoursScr
 import ManagerMenuScreen from '../screens/manager/ManagerMenuScreen';
 import ManagerPhotosScreen from '../screens/manager/ManagerPhotosScreen';
 import ManagerDiscountsScreen from '../screens/manager/ManagerDiscountsScreen';
+import ManagerOffersScreen from '../screens/manager/ManagerOffersScreen';
 import ManagerEventsScreen from '../screens/manager/ManagerEventsScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
 
@@ -254,6 +255,7 @@ export default function Navigation() {
         <Stack.Screen name="ManagerMenu" component={ManagerMenuScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="ManagerPhotos" component={ManagerPhotosScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="ManagerDiscounts" component={ManagerDiscountsScreen} options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="ManagerOffers" component={ManagerOffersScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="ManagerEvents" component={ManagerEventsScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="Chat" component={ChatScreen} options={{ animation: 'slide_from_right' }} />
       </Stack.Navigator>

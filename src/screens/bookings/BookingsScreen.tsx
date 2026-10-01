@@ -12,14 +12,14 @@ import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../../store/authStore';
 import { bookingsApi } from '../../api/bookings';
 import { Booking, RootStackParamList } from '../../types';
-import { COLORS, SPACING, RADIUS, BOOKING_STATUSES } from '../../constants';
+import { API_BASE_URL, COLORS, SPACING, RADIUS, BOOKING_STATUSES } from '../../constants';
 import Button from '../../components/common/Button';
 import { SkeletonRestaurantRow } from '../../components/common/Skeleton';
 import ReviewPromptModal from '../../components/common/ReviewPromptModal';
 import QRModal from '../../components/common/QRModal';
 import ConfirmModal from '../../components/common/ConfirmModal';
 
-const SOCKET_URL = 'http://localhost:3000';
+const SOCKET_URL = API_BASE_URL.replace(/\/v1\/?$/, '');
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({

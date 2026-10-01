@@ -253,9 +253,10 @@ export default function ProfileScreen() {
         {/* ─── Section: შეტყობინებები ─── */}
         <SectionHeader title="შეტყობინებები" />
         <View style={styles.section}>
-          <View style={menuRowStyles.row}>
+          <MenuRow icon="notifications-outline" label="შეტყობინებების ცენტრი" onPress={() => navigation.navigate('Notifications')} />
+          <View style={[menuRowStyles.row, menuRowStyles.border]}>
             <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} style={{ marginRight: SPACING.md }} />
-            <Text style={[menuRowStyles.label]}>შეტყობინებები</Text>
+            <Text style={[menuRowStyles.label]}>Push შეტყობინებები</Text>
             <Switch
               value={notifEnabled}
               onValueChange={toggleNotifications}

@@ -227,7 +227,7 @@ export default function SearchScreen() {
            - distanceKm(userLocation.lat, userLocation.lng, Number(b.latitude), Number(b.longitude));
     }
     if (sortKey === 'rating') return Number(b.ratingAvg) - Number(a.ratingAvg);
-    if (sortKey === 'discount') return (getDiscount(b.id) || 0) - (getDiscount(a.id) || 0);
+    if (sortKey === 'discount') return (Number(b.discountPercent || 0) || 0) - (getDiscount(a.id) || 0);
     return a.name.localeCompare(b.name);
   });
 

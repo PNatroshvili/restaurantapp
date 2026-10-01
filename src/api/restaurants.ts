@@ -51,6 +51,7 @@ export const cuisinesApi = {
 export const managerApi = {
   getMyRestaurant: () =>
     apiClient.get<Restaurant>('/restaurants/mine'),
+  getAnalytics: () => apiClient.get<{ totalBookings:number; todayBookings:number; confirmedBookings:number; cancelledBookings:number; guests:number; ratingAvg:number; reviewsCount:number; daily:{date:string;bookings:number;guests:number}[] }>('/restaurants/mine/analytics'),
 
   updateInfo: (id: string, data: {
     name?: string; description?: string; address?: string;

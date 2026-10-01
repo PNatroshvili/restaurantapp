@@ -99,6 +99,10 @@ export const managerApi = {
   deleteItem: (id: string, itemId: string) =>
     apiClient.delete(`/restaurants/${id}/menu-items/${itemId}`),
 
+  // waitlist
+  getWaitlist: (restaurantId: string) => apiClient.get<any[]>('/waitlist/restaurant/' + encodeURIComponent(restaurantId)),
+  updateWaitlistStatus: (id: string, status: string) => apiClient.patch<any>('/waitlist/' + encodeURIComponent(id) + '/status', { status }),
+
   // offers
   getOffers: () => apiClient.get<RestaurantOffer[]>('/offers/mine'),
   createOffer: (restaurantId: string, data: Partial<RestaurantOffer> & { title: string }) =>

@@ -99,6 +99,14 @@ export const managerApi = {
   deleteItem: (id: string, itemId: string) =>
     apiClient.delete(`/restaurants/${id}/menu-items/${itemId}`),
 
+  // offers
+  getOffers: () => apiClient.get<RestaurantOffer[]>('/offers/mine'),
+  createOffer: (restaurantId: string, data: Partial<RestaurantOffer> & { title: string }) =>
+    apiClient.post<RestaurantOffer>(`/offers/${restaurantId}`, data),
+  updateOffer: (id: string, data: Partial<RestaurantOffer>) =>
+    apiClient.patch<RestaurantOffer>(`/offers/${id}`, data),
+  deleteOffer: (id: string) => apiClient.delete(`/offers/${id}`),
+
   // photos
   uploadPhoto: (id: string, photoUri: string, isCover = false) => {
     const form = new FormData();

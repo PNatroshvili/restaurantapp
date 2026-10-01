@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../types';
 import { bookingsApi } from '../../api/bookings';
 import { restaurantsApi } from '../../api/restaurants';
+import { waitlistApi } from '../../api/waitlist';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import { sendBookingConfirmation, scheduleBookingReminder } from '../../services/notifications';
 
@@ -50,6 +51,8 @@ export default function BookingScreen() {
   const [availabilityError, setAvailabilityError] = useState('');
   const [activeOffer, setActiveOffer] = useState<import('../../types').RestaurantOffer | null>(null);
   const [offerLoading, setOfferLoading] = useState(false);
+  const [joiningWaitlist, setJoiningWaitlist] = useState(false);
+  const [waitlistJoined, setWaitlistJoined] = useState(false);
 
   const checkAnim = useRef(new Animated.Value(0)).current;
 
@@ -108,6 +111,18 @@ export default function BookingScreen() {
   });
 
   const selectedDateObj = new Date(date);
+
+  const joinWaitlist = async () => {
+    if (joiningWaitlist || waitlistJoined) return;
+    setJoiningWaitlist(true);
+    try {
+      await waitlistApi.join({ restaurant_id: restaurantId, date, guests_count: guests });
+      setWaitlistJoined(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e:any) {
+      Alert.alert('შეცდომა', e?.response?.data?.message || 'მოლოდინის სიაში დამატება ვერ მოხერხდა');
+    } finally { setJoiningWaitlist(false); }
+  };
 
   const submit = async () => {
     if (!time) { Alert.alert('', 'გთხოვთ აირჩიოთ დრო'); return; }
@@ -313,7 +328,12 @@ export default function BookingScreen() {
           {availabilityLoading ? <View style={styles.timeStatus}><ActivityIndicator size="small" color={COLORS.primary} /><Text style={styles.timeStatusText}>ვამოწმებთ თავისუფალ მაგიდებს...</Text></View> : null}
           {!availabilityLoading && availabilityError ? <Text style={styles.availabilityError}>{availabilityError}</Text> : null}
           {!availabilityLoading && !availabilityError && availability?.open === false ? <Text style={styles.availabilityError}>ამ დღეს რესტორანი დაკეტილია.</Text> : null}
-          <View style={styles.timeGrid}>
+          {!availabilityLoading && !availabilityError && availability?.open && !availability.slots.some(s => s.available) ? (
+            <TouchableOpacity style={[styles.waitlistBtn, waitlistJoined && styles.waitlistBtnDone]} onPress={joinWaitlist} disabled={joiningWaitlist || waitlistJoined}>
+              {joiningWaitlist ? <ActivityIndicator size="small" color={COLORS.primary}/> : <Ionicons name={waitlistJoined ? 'checkmark-circle-outline' : 'hourglass-outline'} size={17} color={COLORS.primary}/>}
+              <Text style={styles.waitlistText}>{waitlistJoined ? 'მოლოდინის სიაში ხარ' : 'თავისუფალი ადგილი არ არის — შემიყვანე მოლოდინის სიაში'}</Text>
+            </TouchableOpacity>
+          ) : null}          <View style={styles.timeGrid}>
             {(availability?.slots || []).map(({ time: t, available }) => {
               const isSelected = time === t;
               return (
@@ -483,6 +503,9 @@ const styles = StyleSheet.create({
   timeStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm },
   timeStatusText: { fontSize: 12, color: COLORS.textSecondary },
   availabilityError: { fontSize: 12, color: COLORS.error, paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm },
+  waitlistBtn: { marginHorizontal: SPACING.md, marginBottom: SPACING.sm, minHeight: 46, paddingHorizontal: SPACING.md, borderRadius: 12, borderWidth: 1, borderColor: COLORS.primary + '55', backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  waitlistBtnDone: { opacity: 0.75 },
+  waitlistText: { flex: 1, fontSize: 12, color: COLORS.primary, fontWeight: '800', textAlign: 'center' },
 
   // Promo code
   promoWrap: { flexDirection: 'row', paddingHorizontal: SPACING.md, gap: SPACING.sm },

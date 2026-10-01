@@ -75,6 +75,8 @@ export interface Review {
   ambienceRating?: number | null;
   verified?: boolean;
   photos?: { id: string; url: string; createdAt?: string }[];
+  restaurantReply?: string | null;
+  restaurantReplyAt?: string | null;
   comment?: string;
   offerId?: string | null;
   discountPercentApplied?: number | null;

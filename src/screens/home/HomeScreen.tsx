@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
-import { Restaurant, Cuisine, RootStackParamList } from '../../types';
+import { Restaurant, Cuisine, RestaurantOffer, RootStackParamList } from '../../types';
 import { restaurantsApi, cuisinesApi } from '../../api/restaurants';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import RestaurantCard from '../../components/restaurant/RestaurantCard';
@@ -73,6 +73,7 @@ export default function HomeScreen() {
   const [nearby, setNearby] = useState<Restaurant[]>([]);
   const [cuisines, setCuisines] = useState<Cuisine[]>([]);
   const [recentlyViewed, setRecentlyViewed] = useState<Restaurant[]>([]);
+  const [activeOffers, setActiveOffers] = useState<RestaurantOffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -84,14 +85,16 @@ export default function HomeScreen() {
   const load = async () => {
     setLoading(true);
     try {
-      const [popRes, newRes, cusRes] = await Promise.all([
+      const [popRes, newRes, cusRes, offerRes] = await Promise.all([
         restaurantsApi.getAll({ limit: 12, city: 'თბილისი' }),
         restaurantsApi.getAll({ limit: 8, city: 'თბილისი' }),
         cuisinesApi.getAll(),
+        restaurantsApi.getOffers(undefined, new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }), undefined, 2),
       ]);
       setPopular(popRes.data?.data || []);
       setNewest(newRes.data?.data || []);
       setCuisines(Array.isArray(cusRes.data) ? cusRes.data : []);
+      setActiveOffers(Array.isArray(offerRes.data) ? offerRes.data.filter(x => x.isActive) : []);
     } catch {}
     setLoading(false);
   };
@@ -133,7 +136,8 @@ export default function HomeScreen() {
 
   const goToSearch = (params?: any) => navigation.navigate('Search', params);
 
-  const withDiscounts = popular.filter(r => Number(r.discountPercent || 0) || null !== null);
+  const offerRestaurantIds = new Set(activeOffers.map(o => o.restaurantId));
+  const withDiscounts = popular.filter(r => Number(r.discountPercent || 0) > 0 || offerRestaurantIds.has(r.id));
   const trending = [...popular]
     .sort((a, b) => (b.reviewsCount ?? 0) - (a.reviewsCount ?? 0))
     .slice(0, 10);

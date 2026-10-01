@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#00B67A"
+        "backgroundColor": "#D35839"
       },
       "config": {
         "googleMaps": {

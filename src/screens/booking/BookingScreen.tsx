@@ -32,14 +32,14 @@ const GEORGIAN_MONTHS = ['იან', 'თებ', 'მარ', 'აპრ', '�
 export default function BookingScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProps>();
-  const { restaurantId, restaurantName, restaurantImage } = route.params as any;
+  const { restaurantId, restaurantName, restaurantImage, date: initialDate, time: initialTime, guests: initialGuests } = route.params as any;
 
   const today = new Date();
   const formatDate = (d: Date) => d.toISOString().split('T')[0];
 
-  const [date, setDate] = useState(formatDate(today));
-  const [time, setTime] = useState('');
-  const [guests, setGuests] = useState(2);
+  const [date, setDate] = useState(initialDate || formatDate(today));
+  const [time, setTime] = useState(initialTime || '');
+  const [guests, setGuests] = useState(Number.isInteger(initialGuests) ? Math.max(1, Math.min(12, initialGuests)) : 2);
   const [comment, setComment] = useState('');
   const [occasion, setOccasion] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);

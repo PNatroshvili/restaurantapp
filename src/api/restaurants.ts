@@ -51,6 +51,10 @@ export const cuisinesApi = {
 export const managerApi = {
   getMyRestaurant: () =>
     apiClient.get<Restaurant>('/restaurants/mine'),
+  getTables: (restaurantId: string) => apiClient.get<RestaurantTable[]>('/restaurants/' + encodeURIComponent(restaurantId) + '/tables'),
+  createTable: (restaurantId: string, data: Partial<RestaurantTable> & { name: string; capacity: number }) => apiClient.post<RestaurantTable>('/restaurants/' + encodeURIComponent(restaurantId) + '/tables', data),
+  updateTable: (id: string, data: Partial<RestaurantTable>) => apiClient.patch<RestaurantTable>('/restaurants/tables/' + encodeURIComponent(id), data),
+  deleteTable: (id: string) => apiClient.delete('/restaurants/tables/' + encodeURIComponent(id)),
   getAnalytics: () => apiClient.get<{ totalBookings:number; todayBookings:number; confirmedBookings:number; cancelledBookings:number; guests:number; ratingAvg:number; reviewsCount:number; daily:{date:string;bookings:number;guests:number}[] }>('/restaurants/mine/analytics'),
 
   updateInfo: (id: string, data: {

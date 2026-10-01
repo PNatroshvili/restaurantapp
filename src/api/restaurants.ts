@@ -10,6 +10,10 @@ export interface RestaurantFilters {
   is_open?: boolean;
   has_booking?: boolean;
   q?: string;
+  lat?: number;
+  lng?: number;
+  radius?: number;
+  sort?: 'rating' | 'name' | 'discount' | 'distance';
   page?: number;
   limit?: number;
 }

@@ -35,6 +35,13 @@ function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): num
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+const bookingDateLabel = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString('ka-GE', { weekday: 'short', day: 'numeric', month: 'short' });
+const addDaysToTbilisi = (days: number) => {
+  const base = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }) + 'T12:00:00');
+  base.setDate(base.getDate() + days);
+  return base.toLocaleDateString('en-CA');
+};
+
 const HISTORY_KEY = 'search_history';
 const MAX_HISTORY = 5;
 
@@ -76,6 +83,9 @@ export default function SearchScreen() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [cuisines, setCuisines] = useState<Cuisine[]>([]);
   const [searchError, setSearchError] = useState('');
+  const [bookingDate, setBookingDate] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }));
+  const [bookingGuests, setBookingGuests] = useState(2);
+  const [availabilityMap, setAvailabilityMap] = useState<Record<string, string[]>>({});
   const [searchRetry, setSearchRetry] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(route.params?.dishQuery || '');
@@ -133,6 +143,22 @@ export default function SearchScreen() {
       setCuisines(raw.sort((a, b) => (a.name?.toLowerCase().includes('ქართ') ? -1 : 0) - (b.name?.toLowerCase().includes('ქართ') ? -1 : 0)));
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await bookingsApi.availabilitySummary(bookingDate, bookingGuests, 100);
+        if (cancelled) return;
+        const next: Record<string, string[]> = {};
+        (res.data?.restaurants || []).forEach(r => { next[r.id] = r.availableTimes || []; });
+        setAvailabilityMap(next);
+      } catch {
+        if (!cancelled) setAvailabilityMap({});
+      }
+    }, 120);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [bookingDate, bookingGuests]);
 
   useEffect(() => {
     let cancelled = false;
@@ -333,6 +359,24 @@ export default function SearchScreen() {
         </View>
       )}
 
+      {/* ── Booking context ── */}
+      <View style={styles.bookingContextBar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bookingContextRow}>
+          {[0,1,2,3,4].map(offset => {
+            const date = addDaysToTbilisi(offset);
+            return <TouchableOpacity key={date} style={[styles.dateChip, bookingDate === date && styles.dateChipActive]} onPress={() => setBookingDate(date)}>
+              <Text style={[styles.dateChipLabel, bookingDate === date && styles.dateChipLabelActive]}>{offset === 0 ? 'დღეს' : offset === 1 ? 'ხვალ' : bookingDateLabel(date)}</Text>
+            </TouchableOpacity>;
+          })}
+          <View style={styles.guestsControl}>
+            <TouchableOpacity onPress={() => setBookingGuests(v => Math.max(1, v - 1))}><Ionicons name="remove" size={14} color={COLORS.text}/></TouchableOpacity>
+            <Ionicons name="people-outline" size={14} color={COLORS.textSecondary}/>
+            <Text style={styles.guestsControlText}>{bookingGuests}</Text>
+            <TouchableOpacity onPress={() => setBookingGuests(v => Math.min(12, v + 1))}><Ionicons name="add" size={14} color={COLORS.text}/></TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+
       {/* ── Primary filter bar ── */}
       <View style={styles.filterBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
@@ -480,7 +524,7 @@ export default function SearchScreen() {
           }
           renderItem={({ item, index }) => (
             <FadeInItem index={index}>
-              <SearchCard restaurant={item} navigation={navigation} userLocation={userLocation} />
+              <SearchCard restaurant={item} navigation={navigation} userLocation={userLocation} availableTimes={availabilityMap[item.id]} bookingDate={bookingDate} bookingGuests={bookingGuests} />
             </FadeInItem>
           )}
           ItemSeparatorComponent={() => <View style={styles.sep} />}
@@ -616,7 +660,7 @@ export default function SearchScreen() {
   );
 }
 
-function SearchCard({ restaurant: r, navigation, userLocation }: { restaurant: Restaurant; navigation: any; userLocation: { lat: number; lng: number } | null }) {
+function SearchCard({ restaurant: r, navigation, userLocation, availableTimes, bookingDate, bookingGuests }: { restaurant: Restaurant; navigation: any; userLocation: { lat: number; lng: number } | null; availableTimes?: string[]; bookingDate: string; bookingGuests: number }) {
   const cover = coverOf(r);
   const rating = Number(r.ratingAvg) || 0;
   const score = rating.toFixed(1);
@@ -700,6 +744,8 @@ function SearchCard({ restaurant: r, navigation, userLocation }: { restaurant: R
             })()}
           </View>
 
+          {availableTimes?.length ? <View style={styles.cardAvailability}><Text style={styles.cardAvailabilityLabel}>თავისუფალია</Text>{availableTimes.slice(0,4).map(t=><TouchableOpacity key={t} style={styles.cardTimeChip} onPress={() => navigation.navigate('Booking', { restaurantId: r.id, restaurantName: r.name, date: bookingDate, time: t, guests: bookingGuests })}><Text style={styles.cardTimeText}>{t}</Text></TouchableOpacity>)}</View> : null}
+
           {r.address ? (
             <View style={styles.cardAddrRow}>
               <Ionicons name="location-outline" size={11} color={COLORS.textMuted} />
@@ -773,6 +819,19 @@ const styles = StyleSheet.create({
   searchErrorBanner: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, paddingHorizontal: SPACING.sm, paddingVertical: 8, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary + '33', backgroundColor: COLORS.primaryLight, flexDirection: 'row', alignItems: 'center', gap: 7 },
   searchErrorText: { flex: 1, fontSize: 11, color: COLORS.textSecondary },
   searchRetry: { fontSize: 11, fontWeight: '800', color: COLORS.primary },
+  bookingContextBar: { backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  bookingContextRow: { paddingHorizontal: SPACING.md, paddingVertical: 8, gap: 7, alignItems: 'center' },
+  dateChip: { height: 38, minWidth: 72, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceElevated, alignItems: 'center', justifyContent: 'center' },
+  dateChipActive: { backgroundColor: COLORS.primaryLight, borderColor: COLORS.primary + '55' },
+  dateChipLabel: { fontSize: 10, fontWeight: '800', color: COLORS.textSecondary },
+  dateChipLabelActive: { color: COLORS.primary },
+  guestsControl: { height: 38, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
+  guestsControlText: { minWidth: 14, textAlign: 'center', fontSize: 11, fontWeight: '900', color: COLORS.text },
+  cardAvailability: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 9, flexWrap: 'wrap' },
+  cardAvailabilityLabel: { fontSize: 8, fontWeight: '800', color: COLORS.textMuted, marginRight: 2 },
+  cardTimeChip: { minWidth: 43, height: 27, borderRadius: 7, borderWidth: 1, borderColor: COLORS.primary + '44', backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  cardTimeText: { fontSize: 9, fontWeight: '900', color: COLORS.primary },
+
   resultsBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: SPACING.md, paddingVertical: 10,

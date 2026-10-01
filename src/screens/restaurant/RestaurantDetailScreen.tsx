@@ -106,7 +106,7 @@ export default function RestaurantDetailScreen() {
     const rating = Number(restaurant.ratingAvg) || 0;
     const score = rating > 0 ? ` · ${rating.toFixed(1)}/5 ⭐` : '';
     Share.share({
-      message: `🍽️ ${restaurant.name}${score}\n📍 ${restaurant.address}\n\nგაიცანი ეს რესტორანი GastroMap-ზე!`,
+      message: `🍽️ ${restaurant.name}${score}\n📍 ${restaurant.address}\n\nგაიცანი ეს რესტორანი LUKMA-ზე!`,
       title: restaurant.name,
     });
   };
@@ -126,21 +126,10 @@ export default function RestaurantDetailScreen() {
   const rating = Number(restaurant.ratingAvg) || 0;
   const score = rating.toFixed(1);
   const scoreNum = rating;
-  const scoreColor = scoreNum >= 4.5 ? '#00C896' : scoreNum >= 3.5 ? '#F59E0B' : COLORS.textSecondary;
+  const scoreColor = scoreNum >= 4.5 ? COLORS.scoreGood : scoreNum >= 3.5 ? COLORS.scoreMid : COLORS.textSecondary;
   const discount = Number(restaurant?.discountPercent || 0) || null;
   const today = new Date().getDay();
   const todayHours = restaurant.workingHours?.find(wh => wh.day === today);
-
-  // Live wait time estimate based on time of day + day of week
-  const waitTime = (() => {
-    const h = new Date().getHours();
-    const isWeekend = today === 0 || today === 6;
-    const isPeak = (h >= 12 && h <= 14) || (h >= 19 && h <= 22);
-    if (!restaurant.isOpen) return null;
-    const base = isPeak ? (isWeekend ? 30 : 20) : (isWeekend ? 15 : 5);
-    const jitter = (id.charCodeAt(0) % 10) - 5;
-    return Math.max(5, base + jitter);
-  })();
 
   return (
     <View style={styles.root}>
@@ -225,8 +214,8 @@ export default function RestaurantDetailScreen() {
                 )}
                 {restaurant.isOpen !== undefined && (
                   <View style={[styles.openPill, restaurant.isOpen ? styles.openPillOpen : styles.openPillClosed]}>
-                    <View style={[styles.openDot, { backgroundColor: restaurant.isOpen ? '#00C896' : COLORS.error }]} />
-                    <Text style={[styles.openText, { color: restaurant.isOpen ? '#00C896' : COLORS.error }]}>
+                    <View style={[styles.openDot, { backgroundColor: restaurant.isOpen ? COLORS.scoreGood : COLORS.error }]} />
+                    <Text style={[styles.openText, { color: restaurant.isOpen ? COLORS.scoreGood : COLORS.error }]}>
                       {restaurant.isOpen ? 'ახლა ღია' : 'დახურულია'}
                     </Text>
                     {todayHours && !todayHours.isClosed && (
@@ -234,6 +223,9 @@ export default function RestaurantDetailScreen() {
                     )}
                   </View>
                 )}
+              {restaurant.avgMenuPrice ? (
+                <View style={styles.openPill}><Text style={styles.openText}>{restaurant.priceLevel ? '₾'.repeat(restaurant.priceLevel) : '≈ ₾' + Math.round(Number(restaurant.avgMenuPrice))}</Text></View>
+              ) : null}
               </View>
             </View>
             {rating > 0 && (

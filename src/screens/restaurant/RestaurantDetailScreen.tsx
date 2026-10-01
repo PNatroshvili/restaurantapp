@@ -248,21 +248,6 @@ export default function RestaurantDetailScreen() {
           )}
         </View>
 
-        {/* ── Live wait time ── */}
-        {waitTime !== null && (
-          <View style={styles.waitRow}>
-            <View style={[styles.waitBadge, waitTime <= 10 && styles.waitBadgeFast, waitTime >= 25 && styles.waitBadgeBusy]}>
-              <Ionicons name="time-outline" size={13} color={waitTime >= 25 ? '#F97316' : waitTime <= 10 ? '#00C896' : COLORS.primary} />
-              <Text style={[styles.waitText, waitTime >= 25 && { color: '#F97316' }, waitTime <= 10 && { color: '#00C896' }]}>
-                {waitTime <= 10 ? 'თითქმის არ არის მოლოდინი' : `~${waitTime} წთ მოლოდინი`}
-              </Text>
-            </View>
-            <View style={styles.busynessBar}>
-              <View style={[styles.busynessFill, { width: `${Math.min(100, (waitTime / 35) * 100)}%` as any, backgroundColor: waitTime >= 25 ? '#F97316' : waitTime <= 10 ? '#00C896' : COLORS.primary }]} />
-            </View>
-          </View>
-        )}
-
         {/* ── Quick actions ── */}
         <View style={styles.quickActions}>
           <TouchableOpacity style={styles.qaBtn} onPress={openMaps}>
@@ -568,7 +553,7 @@ const styles = StyleSheet.create({
   nameSubRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   cuisine: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '500' },
   openPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 3, borderRadius: RADIUS.full },
-  openPillOpen: { backgroundColor: '#00C89622' },
+  openPillOpen: { backgroundColor: '#2AA87618' },
   openPillClosed: { backgroundColor: COLORS.error + '22' },
   openDot: { width: 6, height: 6, borderRadius: 3 },
   openText: { fontSize: 12, fontWeight: '700' },

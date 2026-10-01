@@ -17,6 +17,7 @@ import SignatureDishCard, { GEORGIAN_DISHES, SignatureDish } from '../../compone
 import { SkeletonCard, SkeletonRestaurantRow } from '../../components/common/Skeleton';
 import { useAuthStore } from '../../store/authStore';
 import { getRecentlyViewed } from '../../services/recentlyViewed';
+import LukmaLogo from '../../components/common/LukmaLogo';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -188,6 +189,7 @@ export default function HomeScreen() {
 
         {/* ─── Header ──────────────────────────────────────────────────── */}
         <View style={styles.header}>
+          <LukmaLogo size={34} />
           <TouchableOpacity style={styles.locationPill} onPress={loadNearby} activeOpacity={0.8}>
             <Ionicons name="location" size={13} color={COLORS.primary} />
             <Text style={styles.locationText}>თბილისი</Text>
@@ -527,8 +529,8 @@ const styles = StyleSheet.create({
   // Header
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 10,
     paddingHorizontal: SPACING.md,
     paddingTop: 6,
     paddingBottom: 4,
@@ -545,7 +547,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   locationText: { fontSize: 13, fontWeight: '700', color: COLORS.text },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginLeft: 'auto' },
   avatarBtn: {
     width: 36,
     height: 36,

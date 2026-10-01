@@ -9,6 +9,7 @@ export interface RestaurantFilters {
   max_price?: number;
   is_open?: boolean;
   has_booking?: boolean;
+  offers?: boolean;
   q?: string;
   lat?: number;
   lng?: number;

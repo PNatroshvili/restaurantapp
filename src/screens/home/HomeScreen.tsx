@@ -11,6 +11,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { Restaurant, Cuisine, RestaurantOffer, RootStackParamList } from '../../types';
 import { restaurantsApi, cuisinesApi } from '../../api/restaurants';
+import { bookingsApi } from '../../api/bookings';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import RestaurantCard from '../../components/restaurant/RestaurantCard';
 import SignatureDishCard, { GEORGIAN_DISHES, SignatureDish } from '../../components/restaurant/SignatureDishCard';
@@ -74,6 +75,7 @@ export default function HomeScreen() {
   const [cuisines, setCuisines] = useState<Cuisine[]>([]);
   const [recentlyViewed, setRecentlyViewed] = useState<Restaurant[]>([]);
   const [activeOffers, setActiveOffers] = useState<RestaurantOffer[]>([]);
+  const [availableTonight, setAvailableTonight] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -85,16 +87,18 @@ export default function HomeScreen() {
   const load = async () => {
     setLoading(true);
     try {
-      const [popRes, newRes, cusRes, offerRes] = await Promise.all([
+      const [popRes, newRes, cusRes, offerRes, availabilityRes] = await Promise.all([
         restaurantsApi.getAll({ limit: 12, city: 'თბილისი' }),
         restaurantsApi.getAll({ limit: 8, city: 'თბილისი' }),
         cuisinesApi.getAll(),
         restaurantsApi.getOffers(undefined, new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }), undefined, 2),
+        bookingsApi.availabilitySummary(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }), 2, 24),
       ]);
       setPopular(popRes.data?.data || []);
       setNewest(newRes.data?.data || []);
       setCuisines(Array.isArray(cusRes.data) ? cusRes.data : []);
       setActiveOffers(Array.isArray(offerRes.data) ? offerRes.data.filter(x => x.isActive) : []);
+      setAvailableTonight(availabilityRes.data?.restaurants || []);
     } catch {}
     setLoading(false);
   };
@@ -248,6 +252,30 @@ export default function HomeScreen() {
             </View>
           </ScrollView>
         </View>
+
+        {/* ─── Available tonight ───────────────────────────────────────── */}
+        {availableTonight.length > 0 && (
+          <View style={styles.section}>
+            <SectionTitle title="დღეს ხელმისაწვდომია" left={<Ionicons name="time-outline" size={17} color={COLORS.primary} />} onSeeAll={() => goToSearch()} />
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={availableTonight.slice(0, 8)}
+              keyExtractor={(r) => r.id}
+              contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.md }}
+              renderItem={({ item }) => (
+                <View style={{ width: 212 }}>
+                  <RestaurantCard restaurant={item} discount={Number(item.discountPercent || 0) || null} availableTimes={item.availableTimes} tag="დღეს" />
+                  {item.availableTimes?.length ? (
+                    <View style={styles.availabilityRow}>
+                      {item.availableTimes.slice(0, 3).map(t => <TouchableOpacity key={t} style={styles.availabilityChip} onPress={() => navigation.navigate('Booking', { restaurantId: item.id, restaurantName: item.name })}><Ionicons name="time-outline" size={10} color={COLORS.primary} /><Text style={styles.availabilityChipText}>{t}</Text></TouchableOpacity>)}
+                    </View>
+                  ) : null}
+                </View>
+              )}
+            />
+          </View>
+        )}
 
         {/* ─── Georgian Classics ───────────────────────────────────────── */}
         <View style={styles.section}>
@@ -688,4 +716,7 @@ const styles = StyleSheet.create({
   // Generic section
   section: { marginBottom: SPACING.lg },
   sectionSub: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', marginTop: 1 },
+  availabilityRow: { flexDirection: 'row', gap: 5, marginTop: 7 },
+  availabilityChip: { flex: 1, minHeight: 30, borderRadius: 9, borderWidth: 1, borderColor: COLORS.primary + '44', backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 3 },
+  availabilityChipText: { fontSize: 10, fontWeight: '900', color: COLORS.primary },
 });

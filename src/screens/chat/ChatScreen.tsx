@@ -48,14 +48,17 @@ export default function ChatScreen() {
 
   const send = () => {
     const content = text.trim();
-    if (!content || !socketRef.current || !user) return;
-    socketRef.current.emit('sendMessage', {
-      bookingId,
-      senderId: user.id,
-      senderRole: user.role,
-      content,
+    if (!content || !socketRef.current || !user || sending) return;
+    setSending(true);
+    setError('');
+    socketRef.current.emit('sendMessage', { bookingId, content }, (ack?: { ok?: boolean; message?: ChatMessage; error?: string }) => {
+      setSending(false);
+      if (!ack?.ok) {
+        setError(ack?.error || 'შეტყობინების გაგზავნა ვერ მოხერხდა');
+        return;
+      }
+      setText('');
     });
-    setText('');
   };
 
   const isMe = (msg: ChatMessage) => msg.senderId === user?.id;

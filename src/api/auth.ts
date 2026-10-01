@@ -29,5 +29,5 @@ export const authApi = {
     apiClient.patch('/auth/me/push-token', { pushToken }),
 
   getLoyalty: () =>
-    apiClient.get<{ points: number; tier: string; nextTier: string | null; progress: number; referralCode: string }>('/auth/me/loyalty'),
+    apiClient.get<{ points: number; tier: string; nextTier: string | null; progress: number; referralCode: string; transactions?: { id: string; delta: number; balanceAfter: number; type: string; description?: string | null; createdAt: string }[]; tiers?: { name: string; min: number; max: number }[] }>('/auth/me/loyalty'),
 };

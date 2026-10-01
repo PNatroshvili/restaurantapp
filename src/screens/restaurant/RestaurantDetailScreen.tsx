@@ -494,6 +494,7 @@ export default function RestaurantDetailScreen() {
                       </View>
                       {rev.comment ? <Text style={styles.reviewComment}>{rev.comment}</Text> : null}
                       {rev.photos?.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.reviewPhotoRow}>{rev.photos.slice(0,4).map(photo => <Image key={photo.id} source={{ uri: photo.url }} style={styles.reviewPhoto}/>)}</ScrollView> : null}
+                      {rev.restaurantReply ? <View style={styles.restaurantReply}><Text style={styles.restaurantReplyTitle}>პასუხი რესტორნისგან</Text><Text style={styles.restaurantReplyText}>{rev.restaurantReply}</Text>{rev.restaurantReplyAt ? <Text style={styles.restaurantReplyDate}>{new Date(rev.restaurantReplyAt).toLocaleDateString('ka-GE')}</Text> : null}</View> : null}
                     </View>
                   );
                 })

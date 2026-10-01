@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../types';
 import { COLORS, SPACING, RADIUS } from '../../constants';
-import { reviewsApi } from '../../api/reviews';
+import { reviewsApi, uploadReviewPhoto } from '../../api/reviews';
 import { showToast } from '../../components/common/Toast';
 import StarRating from '../../components/common/StarRating';
 import Button from '../../components/common/Button';
@@ -66,8 +66,26 @@ export default function ReviewCreateScreen() {
     if ([foodRating, serviceRating, ambienceRating].some(v => v === 0)) { Alert.alert('', 'გთხოვთ შეაფასოთ საკვები, მომსახურება და გარემო'); return; }
     setLoading(true);
     try {
-      await reviewsApi.create({ restaurant_id: restaurantId, rating, food_rating: foodRating, service_rating: serviceRating, ambience_rating: ambienceRating, comment, photos });
-      showToast('შეფასება წარმატებით დაემატა ⭐');
+      const created = await reviewsApi.create({
+        restaurant_id: restaurantId,
+        rating,
+        food_rating: foodRating,
+        service_rating: serviceRating,
+        ambience_rating: ambienceRating,
+        comment,
+      });
+      if (photos.length) {
+        const uploadResults = await Promise.allSettled(
+          photos.map(uri => uploadReviewPhoto(created.data.id, uri)),
+        );
+        if (uploadResults.some(result => result.status === 'rejected')) {
+          showToast('შეფასება დაემატა, მაგრამ ზოგი ფოტო ვერ აიტვირთა', 'error');
+        } else {
+          showToast('შეფასება და ფოტოები წარმატებით დაემატა ⭐');
+        }
+      } else {
+        showToast('შეფასება წარმატებით დაემატა ⭐');
+      }
       navigation.goBack();
     } catch (e: any) {
       Alert.alert('შეცდომა', e?.response?.data?.message || 'ვერ დაემატა');

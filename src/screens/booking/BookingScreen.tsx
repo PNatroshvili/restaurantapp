@@ -24,12 +24,6 @@ const OCCASIONS = [
   { key: 'other',      label: 'სხვა',           emoji: '✨' },
 ];
 
-const TIMES = [
-  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '18:00', '18:30', '19:00', '19:30', '20:00', '20:30',
-  '21:00', '21:30', '22:00',
-];
-
 const GEORGIAN_WEEKDAYS = ['კვი', 'ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ'];
 const GEORGIAN_MONTHS = ['იან', 'თებ', 'მარ', 'აპრ', 'მაი', 'ივნ', 'ივლ', 'აგვ', 'სექ', 'ოქტ', 'ნოე', 'დეკ'];
 
@@ -53,8 +47,29 @@ export default function BookingScreen() {
   const [success, setSuccess] = useState(false);
   const [calendarAdded, setCalendarAdded] = useState(false);
   const [countdown, setCountdown] = useState('');
+  const [availability, setAvailability] = useState<{ slots: { time: string; available: boolean }[]; open: boolean; reason?: string } | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState('');
 
   const checkAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let cancelled = false;
+    setAvailabilityLoading(true);
+    setAvailabilityError('');
+    bookingsApi.getAvailability(restaurantId, date, guests)
+      .then(res => {
+        if (cancelled) return;
+        setAvailability(res.data);
+        const first = res.data?.slots?.find(s => s.available);
+        setTime(prev => res.data?.slots?.some(s => s.available && s.time === prev) ? prev : (first?.time || ''));
+      })
+      .catch(() => {
+        if (!cancelled) { setAvailability(null); setTime(''); setAvailabilityError('ხელმისაწვდომი დროების ჩატვირთვა ვერ მოხერხდა'); }
+      })
+      .finally(() => { if (!cancelled) setAvailabilityLoading(false); });
+    return () => { cancelled = true; };
+  }, [restaurantId, date, guests]);
 
   useEffect(() => {
     if (!success || !date || !time) return;
@@ -297,17 +312,22 @@ export default function BookingScreen() {
             <Text style={styles.sectionTitle}>დრო</Text>
             {time ? <Text style={styles.sectionValue}>{time}</Text> : null}
           </View>
+          {availabilityLoading ? <View style={styles.timeStatus}><ActivityIndicator size="small" color={COLORS.primary} /><Text style={styles.timeStatusText}>ვამოწმებთ თავისუფალ მაგიდებს...</Text></View> : null}
+          {!availabilityLoading && availabilityError ? <Text style={styles.availabilityError}>{availabilityError}</Text> : null}
+          {!availabilityLoading && !availabilityError && availability?.open === false ? <Text style={styles.availabilityError}>ამ დღეს რესტორანი დაკეტილია.</Text> : null}
           <View style={styles.timeGrid}>
-            {TIMES.map((t) => {
+            {(availability?.slots || []).map(({ time: t, available }) => {
               const isSelected = time === t;
               return (
                 <TouchableOpacity
                   key={t}
-                  style={[styles.timeChip, isSelected && styles.timeChipActive]}
+                  style={[styles.timeChip, !available && styles.timeChipDisabled, isSelected && styles.timeChipActive]}
                   onPress={() => setTime(t)}
+                  disabled={!available}
+                  accessibilityState={{ selected: isSelected, disabled: !available }}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.timeText, isSelected && styles.timeTextActive]}>{t}</Text>
+                  <Text style={[styles.timeText, !available && styles.timeTextDisabled, isSelected && styles.timeTextActive]}>{t}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -482,6 +502,11 @@ const styles = StyleSheet.create({
   timeChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   timeText: { fontSize: 14, fontWeight: '700', color: COLORS.textSecondary },
   timeTextActive: { color: '#fff' },
+  timeChipDisabled: { opacity: 0.38 },
+  timeTextDisabled: { color: COLORS.textMuted },
+  timeStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm },
+  timeStatusText: { fontSize: 12, color: COLORS.textSecondary },
+  availabilityError: { fontSize: 12, color: COLORS.error, paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm },
 
   // Promo code
   promoWrap: { flexDirection: 'row', paddingHorizontal: SPACING.md, gap: SPACING.sm },

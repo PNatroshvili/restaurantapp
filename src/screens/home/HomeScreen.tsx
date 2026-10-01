@@ -138,7 +138,7 @@ export default function HomeScreen() {
 
   const goToSearch = (params?: any) => navigation.navigate('Search', params);
 
-  const withDiscounts = popular.filter(r => getDiscount(r.id) !== null);
+  const withDiscounts = popular.filter(r => Number(r.discountPercent || 0) || null !== null);
   const trending = [...popular]
     .sort((a, b) => (b.reviewsCount ?? 0) - (a.reviewsCount ?? 0))
     .slice(0, 10);
@@ -157,7 +157,7 @@ export default function HomeScreen() {
   }, [navigation, cuisines]);
 
   const renderCard = useCallback(({ item }: { item: Restaurant }) => (
-    <RestaurantCard restaurant={item} discount={getDiscount(item.id)} />
+    <RestaurantCard restaurant={item} discount={Number(item.discountPercent || 0) || null} />
   ), []);
 
   const renderCuisineTile = useCallback(({ item }: { item: Cuisine }) => {
@@ -340,7 +340,7 @@ export default function HomeScreen() {
               keyExtractor={(r) => r.id}
               contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.md }}
               renderItem={({ item }) => (
-                <RestaurantCard restaurant={item} discount={getDiscount(item.id)} tag="⚡ სპეციალური" />
+                <RestaurantCard restaurant={item} discount={Number(item.discountPercent || 0) || null} tag="⚡ სპეციალური" />
               )}
             />
           </View>
@@ -400,7 +400,7 @@ export default function HomeScreen() {
                 keyExtractor={(r) => r.id}
                 contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.md }}
                 renderItem={({ item }) => (
-                  <RestaurantCard restaurant={item} discount={getDiscount(item.id)} tag="🔥 ტრენდი" />
+                  <RestaurantCard restaurant={item} discount={Number(item.discountPercent || 0) || null} tag="🔥 ტრენდი" />
                 )}
               />
             )}
@@ -430,7 +430,7 @@ export default function HomeScreen() {
               ? [1, 2, 3].map(i => <SkeletonRestaurantRow key={i} />)
               : georgiansFirst(newest).map((r, i) => (
                   <FadeSlideIn key={r.id} index={i}>
-                    <RestaurantCard restaurant={r} horizontal discount={getDiscount(r.id)} />
+                    <RestaurantCard restaurant={r} horizontal discount={Number(r.discountPercent || 0) || null} />
                   </FadeSlideIn>
                 ))
             }

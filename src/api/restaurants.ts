@@ -30,6 +30,7 @@ export const restaurantsApi = {
 
   getOffers: (id?: string, date?: string, time?: string, guests = 1) =>
     apiClient.get<RestaurantOffer[]>('/offers', { params: { restaurant_id: id, date, time, guests } }),
+  getCollections: () => apiClient.get<{ id:string; titleKa:string; subtitle?:string|null; emoji:string; accent:string; bg:string; filterType:string; filterValue?:string|null; isActive:boolean; sortOrder:number }[]>('/collections'),
 
   addFavorite: (restaurantId: string) => apiClient.post(`/favorites`, { restaurant_id: restaurantId }),
   removeFavorite: (restaurantId: string) => apiClient.delete(`/favorites/${restaurantId}`),

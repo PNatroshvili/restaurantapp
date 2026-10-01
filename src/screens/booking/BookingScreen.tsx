@@ -10,6 +10,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../types';
 import { bookingsApi } from '../../api/bookings';
+import { restaurantsApi } from '../../api/restaurants';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import { sendBookingConfirmation, scheduleBookingReminder } from '../../services/notifications';
 
@@ -39,9 +40,6 @@ export default function BookingScreen() {
   const [time, setTime] = useState('');
   const [guests, setGuests] = useState(2);
   const [comment, setComment] = useState('');
-  const [promoCode, setPromoCode] = useState('');
-  const [promoApplied, setPromoApplied] = useState(false);
-  const [promoError, setPromoError] = useState('');
   const [occasion, setOccasion] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -50,8 +48,20 @@ export default function BookingScreen() {
   const [availability, setAvailability] = useState<{ slots: { time: string; available: boolean }[]; open: boolean; reason?: string } | null>(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState('');
+  const [activeOffer, setActiveOffer] = useState<import('../../types').RestaurantOffer | null>(null);
+  const [offerLoading, setOfferLoading] = useState(false);
 
   const checkAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let cancelled = false;
+    setOfferLoading(true);
+    restaurantsApi.getOffers(restaurantId, date, time || undefined, guests)
+      .then(res => { if (!cancelled) setActiveOffer((res.data || []).filter(x => x.isActive)[0] || null); })
+      .catch(() => { if (!cancelled) setActiveOffer(null); })
+      .finally(() => { if (!cancelled) setOfferLoading(false); });
+    return () => { cancelled = true; };
+  }, [restaurantId, date, time, guests]);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,20 +100,6 @@ export default function BookingScreen() {
     const interval = setInterval(updateCountdown, 60000);
     return () => clearInterval(interval);
   }, [success, date, time]);
-
-  const applyPromo = () => {
-    const upper = promoCode.trim().toUpperCase();
-    if (!upper) return;
-    const validCodes = ['SKUP10', 'WELCOME', 'SKUP2026'];
-    if (validCodes.includes(upper)) {
-      setPromoApplied(true);
-      setPromoError('');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else {
-      setPromoError('პრომო კოდი არ არის სწორი');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-  };
 
   const nextDays = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(today);
@@ -246,7 +242,9 @@ export default function BookingScreen() {
               <View style={styles.freeCancelRow}>
                 <Ionicons name="shield-checkmark-outline" size={13} color={COLORS.primary} />
                 <Text style={styles.freeCancelSmall}>უფასო გაუქმება</Text>
-              </View>
+                {activeOffer ? <View style={styles.offerMiniRow}><Ionicons name="pricetag-outline" size={12} color={COLORS.primary} /><Text style={styles.offerMiniText} numberOfLines={1}>{activeOffer.title}{activeOffer.discountPercent ? ' · ' + activeOffer.discountPercent + '%' : ''}</Text></View> : null}
+              {offerLoading ? <Text style={styles.offerLoading}>შეთავაზებებს ვამოწმებთ…</Text> : null}
+            </View>
             </View>
           </View>
 
@@ -333,31 +331,6 @@ export default function BookingScreen() {
             })}
           </View>
 
-          {/* ── Promo Code ── */}
-          <View style={styles.sectionWrap}>
-            <Text style={styles.sectionTitle}>პრომო კოდი</Text>
-            {promoApplied && <Text style={styles.promoSuccess}>✓ გამოყენებულია</Text>}
-          </View>
-          <View style={styles.promoWrap}>
-            <TextInput
-              style={[styles.promoInput, promoApplied && styles.promoInputApplied]}
-              placeholder="შეიყვანე კოდი..."
-              value={promoCode}
-              onChangeText={t => { setPromoCode(t); setPromoError(''); }}
-              autoCapitalize="characters"
-              placeholderTextColor={COLORS.textMuted}
-              editable={!promoApplied}
-            />
-            <TouchableOpacity
-              style={[styles.promoBtn, (!promoCode.trim() || promoApplied) && styles.promoBtnDisabled]}
-              onPress={applyPromo}
-              disabled={!promoCode.trim() || promoApplied}
-            >
-              <Text style={styles.promoBtnText}>{promoApplied ? '✓' : 'გამოყენება'}</Text>
-            </TouchableOpacity>
-          </View>
-          {promoError ? <Text style={styles.promoErrorText}>{promoError}</Text> : null}
-
           {/* ── Special Occasion ── */}
           <View style={styles.sectionWrap}>
             <Text style={styles.sectionTitle}>სპეციალური შემთხვევა</Text>
@@ -421,10 +394,10 @@ export default function BookingScreen() {
                 <Ionicons name="people-outline" size={15} color={COLORS.textSecondary} />
                 <Text style={styles.summaryText}>{guests} სტუმარი</Text>
               </View>
-              {promoApplied && (
+              {activeOffer && (
                 <View style={styles.summaryRow}>
                   <Ionicons name="pricetag-outline" size={15} color={COLORS.primary} />
-                  <Text style={[styles.summaryText, { color: COLORS.primary }]}>პრომო კოდი გამოყენებულია 🎉</Text>
+                  <Text style={[styles.summaryText, { color: COLORS.primary }]}>{activeOffer.title}{activeOffer.discountPercent ? ' · ' + activeOffer.discountPercent + '%' : ''}</Text>
                 </View>
               )}
             </View>
@@ -472,6 +445,9 @@ const styles = StyleSheet.create({
   restName: { fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
   freeCancelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   freeCancelSmall: { fontSize: 12, color: COLORS.primary, fontWeight: '600' },
+  offerMiniRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  offerMiniText: { flex: 1, fontSize: 11, color: COLORS.primary, fontWeight: '700' },
+  offerLoading: { fontSize: 10, color: COLORS.textMuted, marginTop: 3 },
 
   // Section headers
   sectionWrap: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: SPACING.md, paddingTop: SPACING.lg, paddingBottom: SPACING.sm },

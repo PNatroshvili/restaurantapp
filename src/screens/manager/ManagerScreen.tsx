@@ -80,7 +80,7 @@ export default function ManagerScreen() {
   const load = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const [bRes, rRes] = await Promise.allSettled([
+      const [bRes, rRes, aRes] = await Promise.allSettled([
         bookingsApi.getMyRestaurant(),
         managerApi.getMyRestaurant(),
       ]);
@@ -99,6 +99,7 @@ export default function ManagerScreen() {
   const confirmed = bookings.filter(b => b.status === 'confirmed').length;
   const todayTotal = bookings.filter(b => b.date === today).length;
   const totalGuests = bookings.filter(b => b.status === 'confirmed').reduce((s, b) => s + b.guestsCount, 0);
+  const cancellationRate = analytics?.totalBookings ? Math.round((analytics.cancelledBookings / analytics.totalBookings) * 100) : 0;
 
   const DAY_LABELS = ['კვი', 'ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ'];
   const bookingsByDay = DAY_LABELS.map((_, i) =>
@@ -167,6 +168,12 @@ export default function ManagerScreen() {
             <Ionicons name="refresh-outline" size={20} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
+
+        {analytics ? <View style={styles.analyticsSnapshot}>
+          <View><Text style={styles.analyticsValue}>{analytics.ratingAvg.toFixed(1)}</Text><Text style={styles.analyticsLabel}>რეიტინგი · {analytics.reviewsCount} შეფასება</Text></View>
+          <View><Text style={styles.analyticsValue}>{analytics.todayBookings}</Text><Text style={styles.analyticsLabel}>დღეს</Text></View>
+          <View><Text style={styles.analyticsValue}>{cancellationRate}%</Text><Text style={styles.analyticsLabel}>გაუქმება</Text></View>
+        </View> : null}
 
         {/* Stats */}
         <View style={styles.statsRow}>

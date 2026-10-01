@@ -68,6 +68,7 @@ export default function HomeScreen() {
   const [recentlyViewed, setRecentlyViewed] = useState<Restaurant[]>([]);
   const [activeOffers, setActiveOffers] = useState<RestaurantOffer[]>([]);
   const [availableTonight, setAvailableTonight] = useState<Restaurant[]>([]);
+  const [collections, setCollections] = useState<{ id:string; titleKa:string; subtitle?:string|null; emoji:string; accent:string; bg:string; filterType:string; filterValue?:string|null; isActive:boolean; sortOrder:number }[]>([]);
   const [loadError, setLoadError] = useState('');
   const [notificationCount, setNotificationCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -82,10 +83,11 @@ export default function HomeScreen() {
     setLoading(true);
     setLoadError('');
     try {
-      const [popRes, newRes, cusRes, offerRes, availabilityRes] = await Promise.allSettled([
+      const [popRes, newRes, cusRes, colRes, offerRes, availabilityRes] = await Promise.allSettled([
         restaurantsApi.getAll({ limit: 12, city: 'თბილისი' }),
         restaurantsApi.getAll({ limit: 8, city: 'თბილისი' }),
         cuisinesApi.getAll(),
+        restaurantsApi.getCollections(),
         restaurantsApi.getOffers(undefined, new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }), undefined, 2),
         bookingsApi.availabilitySummary(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }), 2, 24),
       ]);
@@ -93,6 +95,7 @@ export default function HomeScreen() {
       else setLoadError('რესტორნების ჩატვირთვა ვერ მოხერხდა. სცადე თავიდან.');
       if (newRes.status === 'fulfilled') setNewest(newRes.value.data?.data || []);
       if (cusRes.status === 'fulfilled') setCuisines(Array.isArray(cusRes.value.data) ? cusRes.value.data : []);
+      if (colRes.status === 'fulfilled') setCollections((colRes.value.data || []).filter(x => x.isActive).sort((a,b) => a.sortOrder - b.sortOrder));
       if (offerRes.status === 'fulfilled') setActiveOffers(Array.isArray(offerRes.value.data) ? offerRes.value.data.filter(x => x.isActive) : []);
       if (availabilityRes.status === 'fulfilled') setAvailableTonight(availabilityRes.value.data?.restaurants || []);
     } catch {
@@ -278,6 +281,31 @@ export default function HomeScreen() {
                     </View>
                   ) : null}
                 </View>
+              )}
+            />
+          </View>
+        )}
+
+        {collections.length > 0 && (
+          <View style={styles.section}>
+            <SectionTitle title="შეარჩიე განწყობა" onSeeAll={() => goToSearch()} />
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={collections.slice(0, 6)}
+              keyExtractor={c => c.id}
+              contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.sm }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.collectionCard, { backgroundColor: item.bg || COLORS.surface, borderColor: (item.accent || COLORS.primary) + '44' }]}
+                  onPress={() => goToSearch(item.filterType === 'cuisine' && item.filterValue ? { cuisineId:item.filterValue } : undefined)}
+                  activeOpacity={0.82}
+                >
+                  <Text style={styles.collectionEmoji}>{item.emoji}</Text>
+                  <Text style={[styles.collectionTitle, { color: item.accent || COLORS.primary }]} numberOfLines={1}>{item.titleKa}</Text>
+                  <Text style={styles.collectionSub} numberOfLines={2}>{item.subtitle || 'შეარჩიე რესტორანი'}</Text>
+                  <View style={[styles.collectionArrow, { backgroundColor:(item.accent || COLORS.primary) + '18' }]}><Ionicons name="arrow-forward" size={12} color={item.accent || COLORS.primary}/></View>
+                </TouchableOpacity>
               )}
             />
           </View>

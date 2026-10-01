@@ -9,13 +9,13 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { io, Socket } from 'socket.io-client';
-import { COLORS, SPACING, RADIUS } from '../../constants';
+import { API_BASE_URL, COLORS, SPACING, RADIUS } from '../../constants';
 import { bookingsApi } from '../../api/bookings';
 import { managerApi } from '../../api/restaurants';
 import { useAuthStore } from '../../store/authStore';
 import { Booking, Restaurant, RootStackParamList } from '../../types';
 
-const SOCKET_URL = 'http://localhost:3000';
+const SOCKET_URL = API_BASE_URL.replace(/\/v1\/?$/, '');
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 

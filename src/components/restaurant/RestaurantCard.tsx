@@ -49,6 +49,11 @@ export default function RestaurantCard({ restaurant, horizontal = false, discoun
       ? `${Math.round(restaurant.distance)}მ`
       : `${(restaurant.distance / 1000).toFixed(1)}კმ`
     : null;
+  const priceText = restaurant.priceLevel
+    ? '₾'.repeat(restaurant.priceLevel)
+    : Number.isFinite(Number(restaurant.avgMenuPrice))
+      ? '≈ ₾' + Math.round(Number(restaurant.avgMenuPrice))
+      : null;
 
   // ── Horizontal row card ──────────────────────────────────────────────────
   if (horizontal) {
@@ -192,6 +197,11 @@ export default function RestaurantCard({ restaurant, horizontal = false, discoun
                 <Text style={styles.distTxt}>{distanceText}</Text>
               </View>
             )}
+            {priceText && (
+              <View style={styles.distPill}>
+                <Text style={styles.distTxt}>{priceText}</Text>
+              </View>
+            )}
           </View>
         </View>
       </TouchableOpacity>
@@ -202,9 +212,9 @@ export default function RestaurantCard({ restaurant, horizontal = false, discoun
 const styles = StyleSheet.create({
   // ── Vertical card ──
   card: {
-    width: 205,
-    height: 258,
-    borderRadius: RADIUS.xl,
+    width: 212,
+    height: 252,
+    borderRadius: RADIUS.lg,
     overflow: 'hidden',
     backgroundColor: COLORS.surfaceElevated,
   },
@@ -271,7 +281,7 @@ const styles = StyleSheet.create({
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
   cuisinePill: {
-    backgroundColor: 'rgba(0,182,122,0.25)',
+    backgroundColor: 'rgba(211,88,57,0.18)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: RADIUS.full,

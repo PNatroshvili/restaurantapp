@@ -486,7 +486,14 @@ export default function RestaurantDetailScreen() {
                           <Text style={[styles.reviewScoreText, { color: revColor }]}>{revRating.toFixed(1)}</Text>
                         </View>
                       </View>
+                      <View style={styles.reviewMetaRow}>
+                        {rev.verified ? <View style={styles.verifiedPill}><Ionicons name="checkmark-circle" size={11} color={COLORS.success}/><Text style={styles.verifiedText}>დადასტურებული ვიზიტი</Text></View> : null}
+                        {rev.foodRating ? <Text style={styles.subRatingText}>საკვები {rev.foodRating}/5</Text> : null}
+                        {rev.serviceRating ? <Text style={styles.subRatingText}>სერვისი {rev.serviceRating}/5</Text> : null}
+                        {rev.ambienceRating ? <Text style={styles.subRatingText}>გარემო {rev.ambienceRating}/5</Text> : null}
+                      </View>
                       {rev.comment ? <Text style={styles.reviewComment}>{rev.comment}</Text> : null}
+                      {rev.photos?.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.reviewPhotoRow}>{rev.photos.slice(0,4).map(photo => <Image key={photo.id} source={{ uri: photo.url }} style={styles.reviewPhoto}/>)}</ScrollView> : null}
                     </View>
                   );
                 })
@@ -665,6 +672,12 @@ const styles = StyleSheet.create({
   reviewDate: { fontSize: 11, color: COLORS.textMuted, marginTop: 1 },
   reviewScore: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.sm },
   reviewScoreText: { fontSize: 13, fontWeight: '800' },
+  reviewMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 7 },
+  verifiedPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, backgroundColor: COLORS.success + '12' },
+  verifiedText: { fontSize: 8, color: COLORS.success, fontWeight: '800' },
+  subRatingText: { fontSize: 8, color: COLORS.textMuted, backgroundColor: COLORS.surfaceElevated, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  reviewPhotoRow: { gap: 6, paddingTop: 8, paddingBottom: 2 },
+  reviewPhoto: { width: 68, height: 68, borderRadius: 9 },
   reviewComment: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 21 },
 
   // Empty states

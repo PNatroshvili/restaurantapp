@@ -36,6 +36,7 @@ export interface Restaurant {
   cover_photo?: string; // returned by mapCoverPhoto in service
   photos?: RestaurantPhoto[];
   cuisine?: Cuisine;
+  menuCategories?: MenuCategory[];
   workingHours?: WorkingHour[];
 }
 
@@ -121,6 +122,9 @@ export interface Booking {
   guestsCount: number;
   comment?: string;
   status: 'pending' | 'confirmed' | 'cancelled' | 'rejected';
+  offerId?: string | null;
+  discountPercentApplied?: number | null;
+  tableId?: string | null;
   restaurant?: Pick<Restaurant, 'id' | 'name' | 'address' | 'cover_photo'>;
   user?: Pick<User, 'id' | 'name' | 'phone' | 'email'>;
 }

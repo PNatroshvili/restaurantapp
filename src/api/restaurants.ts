@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { PaginatedResponse, Restaurant, MenuCategory, Review, Cuisine, MenuItem, WorkingHour, RestaurantPhoto, RestaurantOffer } from '../types';
+import { PaginatedResponse, Restaurant, MenuCategory, Review, Cuisine, MenuItem, WorkingHour, RestaurantPhoto, RestaurantOffer, RestaurantTable } from '../types';
 
 export interface RestaurantFilters {
   city?: string;

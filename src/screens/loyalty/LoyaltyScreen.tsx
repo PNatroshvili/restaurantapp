@@ -24,7 +24,7 @@ const REWARDS = [
 export default function LoyaltyScreen() {
   const navigation = useNavigation();
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
-  const [loyalty, setLoyalty] = useState<{ points: number; tier: string; nextTier: string | null; progress: number; referralCode: string } | null>(null);
+  const [loyalty, setLoyalty] = useState<{ points: number; tier: string; nextTier: string | null; progress: number; referralCode: string; transactions?: { id: string; delta: number; balanceAfter: number; type: string; description?: string | null; createdAt: string }[] } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

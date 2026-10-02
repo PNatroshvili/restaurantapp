@@ -32,7 +32,7 @@ export default function ChatScreen() {
   useEffect(() => {
     chatApi.getMessages(bookingId)
       .then(r => setMessages(r.data))
-      .catch(() => setError('ჩატის ჩატვირთვა ვერ მოხერხდა'));
+      .catch(() => setError('ჩატის ჩატვირთვა ვერ მოხერხდა'))
       .finally(() => setLoading(false));
 
     const token = useAuthStore.getState().accessToken || '';

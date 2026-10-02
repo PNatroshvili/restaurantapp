@@ -30,7 +30,7 @@ export default function RestaurantDetailScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const requireAuth = useRequireAuth();
   const insets = useSafeAreaInsets();
-  const { id } = route.params;
+  const { id, date: bookingDate, time: bookingTime, guests: bookingGuests } = route.params;
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [menu, setMenu] = useState<MenuCategory[]>([]);
@@ -514,7 +514,7 @@ export default function RestaurantDetailScreen() {
         )}
         <Button
           label="მაგიდის დაჯავშნა"
-          onPress={() => requireAuth(() => navigation.navigate('Booking', { restaurantId: id, restaurantName: restaurant.name }))}
+          onPress={() => requireAuth(() => navigation.navigate('Booking', { restaurantId: id, restaurantName: restaurant.name, date: bookingDate, time: bookingTime, guests: bookingGuests }))}
         />
       </View>
 

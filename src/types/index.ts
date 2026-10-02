@@ -24,6 +24,7 @@ export interface Restaurant {
   longitude: number;
   phone?: string;
   discountPercent?: number;
+  bestOfferDiscount?: number | null;
   avgMenuPrice?: number | null;
   priceLevel?: 1 | 2 | 3 | null;
   ratingAvg: number;

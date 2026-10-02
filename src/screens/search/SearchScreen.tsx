@@ -12,6 +12,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Restaurant, Cuisine, RootStackParamList } from '../../types';
 import { restaurantsApi, cuisinesApi } from '../../api/restaurants';
+import { bookingsApi } from '../../api/bookings';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import { SkeletonRestaurantRow } from '../../components/common/Skeleton';
 

@@ -188,11 +188,6 @@ export default function BookingScreen() {
           </View>
         )}
 
-        <View style={styles.freeCancelBadge}>
-          <Ionicons name="shield-checkmark-outline" size={15} color={COLORS.primary} />
-          <Text style={styles.freeCancelText}>უფასო გაუქმება · პირობების გარეშე</Text>
-        </View>
-
         {/* Add to calendar */}
         <TouchableOpacity
           style={[styles.calendarBtn, calendarAdded && styles.calendarBtnDone]}

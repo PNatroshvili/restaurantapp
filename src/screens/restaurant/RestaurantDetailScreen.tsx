@@ -680,6 +680,10 @@ const styles = StyleSheet.create({
   reviewPhotoRow: { gap: 6, paddingTop: 8, paddingBottom: 2 },
   reviewPhoto: { width: 68, height: 68, borderRadius: 9 },
   reviewComment: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 21 },
+  restaurantReply: { marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: COLORS.primaryLight, borderWidth: 1, borderColor: COLORS.primary + '33' },
+  restaurantReplyTitle: { fontSize: 10, fontWeight: '900', color: COLORS.primary, marginBottom: 3 },
+  restaurantReplyText: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17 },
+  restaurantReplyDate: { marginTop: 4, fontSize: 9, color: COLORS.textMuted },
 
   // Empty states
   emptyWrap: { alignItems: 'center', paddingVertical: SPACING.xl, gap: SPACING.sm },

@@ -261,7 +261,7 @@ export default function SearchScreen() {
       const level = Number((r as any).priceLevel || 0) || (Number(r.avgMenuPrice) > 0 ? (Number(r.avgMenuPrice) < 15 ? 1 : Number(r.avgMenuPrice) < 30 ? 2 : 3) : 0);
       if (level !== filterPrice) return false;
     }
-    if (filterDiscount && Number(r.discountPercent || 0) <= 0) return false;
+    if (filterDiscount && Math.max(Number(r.discountPercent || 0), Number(r.bestOfferDiscount || 0)) <= 0) return false;
     if (filterDietary.size > 0) {
       const haystack = `${r.name} ${r.description || ''} ${r.cuisine?.name || ''}`.toLowerCase();
       if (![...filterDietary].every(key => DIETARY_OPTIONS.find(d => d.key === key)?.keywords.some(kw => haystack.includes(kw)))) return false;
@@ -279,7 +279,7 @@ export default function SearchScreen() {
            - distanceKm(userLocation.lat, userLocation.lng, Number(b.latitude), Number(b.longitude));
     }
     if (sortKey === 'rating') return Number(b.ratingAvg) - Number(a.ratingAvg);
-    if (sortKey === 'discount') return (Number(b.discountPercent || 0) || 0) - (Number(a.discountPercent || 0) || 0);
+    if (sortKey === 'discount') return Math.max(Number(b.discountPercent || 0), Number(b.bestOfferDiscount || 0)) - Math.max(Number(a.discountPercent || 0), Number(a.bestOfferDiscount || 0));
     return a.name.localeCompare(b.name);
   });
 

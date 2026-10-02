@@ -674,7 +674,7 @@ function SearchCard({ restaurant: r, navigation, userLocation, availableTimes, b
   const onPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Keyboard.dismiss();
-    navigation.navigate('RestaurantDetail', { id: r.id });
+    navigation.navigate('RestaurantDetail', { id: r.id, date: bookingDate, guests: bookingGuests, time: availableTimes?.[0] });
   };
 
   return (
@@ -756,7 +756,7 @@ function SearchCard({ restaurant: r, navigation, userLocation, availableTimes, b
 
           <TouchableOpacity
             style={styles.bookBtn}
-            onPress={() => navigation.navigate('Booking', { restaurantId: r.id })}
+            onPress={() => navigation.navigate('Booking', { restaurantId: r.id, restaurantName: r.name, date: bookingDate, guests: bookingGuests })}
           >
             <Ionicons name="calendar-outline" size={13} color="#fff" />
             <Text style={styles.bookBtnText}>მაგიდის ჯავშნა</Text>

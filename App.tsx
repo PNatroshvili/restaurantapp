@@ -17,7 +17,7 @@ export const navigationRef = React.createRef<NavigationContainerRef<RootStackPar
 
 function AppInner() {
   const loadFromStorage = useAuthStore((s) => s.loadFromStorage);
-  const responseListener = useRef<Notifications.EventSubscription>();
+  const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
     setAuthStateGetter(() => useAuthStore.getState());

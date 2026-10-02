@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView,
-  Alert, KeyboardAvoidingView, Platform, Image, Animated,
+  Alert, KeyboardAvoidingView, Platform, Image, Animated, ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { addBookingToCalendar } from '../../services/calendar';
@@ -75,7 +75,7 @@ export default function BookingScreen() {
         if (cancelled) return;
         setAvailability(res.data);
         const first = res.data?.slots?.find(s => s.available);
-        setTime(prev => res.data?.slots?.some(s => s.available && s.time === prev) ? prev : (first?.time || ''));
+        setTime((prev: string) => res.data?.slots?.some(s => s.available && s.time === prev) ? prev : (first?.time || ''));
       })
       .catch(() => {
         if (!cancelled) { setAvailability(null); setTime(''); setAvailabilityError('ხელმისაწვდომი დროების ჩატვირთვა ვერ მოხერხდა'); }

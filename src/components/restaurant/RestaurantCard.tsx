@@ -13,9 +13,10 @@ interface Props {
   horizontal?: boolean;
   discount?: number | null;
   tag?: string;
+  availableTimes?: string[];
 }
 
-export default function RestaurantCard({ restaurant, horizontal = false, discount, tag }: Props) {
+export default function RestaurantCard({ restaurant, horizontal = false, discount, tag, availableTimes }: Props) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -49,6 +50,11 @@ export default function RestaurantCard({ restaurant, horizontal = false, discoun
       ? `${Math.round(restaurant.distance)}მ`
       : `${(restaurant.distance / 1000).toFixed(1)}კმ`
     : null;
+  const priceText = restaurant.priceLevel
+    ? '₾'.repeat(restaurant.priceLevel)
+    : Number.isFinite(Number(restaurant.avgMenuPrice))
+      ? '≈ ₾' + Math.round(Number(restaurant.avgMenuPrice))
+      : null;
 
   // ── Horizontal row card ──────────────────────────────────────────────────
   if (horizontal) {
@@ -106,6 +112,7 @@ export default function RestaurantCard({ restaurant, horizontal = false, discoun
                 <Text style={[styles.scoreNumH, { color: scoreColor }]}>{score}</Text>
               </View>
             )}
+            {availableTimes?.length ? <View style={styles.availableMiniH}><Text style={styles.availableMiniLabel}>დღეს</Text><Text style={styles.availableMiniTime}>{availableTimes[0]}</Text></View> : null}
             {restaurant.phone && (
               <TouchableOpacity style={styles.callBtnH} onPress={call} activeOpacity={0.75}>
                 <Ionicons name="call" size={13} color={COLORS.primary} />
@@ -179,7 +186,7 @@ export default function RestaurantCard({ restaurant, horizontal = false, discoun
               </View>
             )}
             {isOpen !== undefined && (
-              <View style={[styles.statusPill, { backgroundColor: isOpen ? 'rgba(0,212,168,0.22)' : 'rgba(239,68,68,0.22)' }]}>
+              <View style={[styles.statusPill, { backgroundColor: isOpen ? 'rgba(42,168,118,0.18)' : 'rgba(211,88,57,0.12)' }]}>
                 <View style={[styles.statusDotV, { backgroundColor: isOpen ? COLORS.scoreGood : COLORS.error }]} />
                 <Text style={[styles.statusTxtV, { color: isOpen ? COLORS.scoreGood : COLORS.error }]}>
                   {isOpen ? 'ღია' : 'დახ.'}
@@ -192,6 +199,12 @@ export default function RestaurantCard({ restaurant, horizontal = false, discoun
                 <Text style={styles.distTxt}>{distanceText}</Text>
               </View>
             )}
+            {priceText && (
+              <View style={styles.distPill}>
+                <Text style={styles.distTxt}>{priceText}</Text>
+              </View>
+            )}
+            {availableTimes?.length ? <View style={styles.timesPill}><Ionicons name="time-outline" size={9} color="#fff"/><Text style={styles.distTxt}>{availableTimes.slice(0,3).join(' · ')}</Text></View> : null}
           </View>
         </View>
       </TouchableOpacity>
@@ -202,9 +215,9 @@ export default function RestaurantCard({ restaurant, horizontal = false, discoun
 const styles = StyleSheet.create({
   // ── Vertical card ──
   card: {
-    width: 205,
-    height: 258,
-    borderRadius: RADIUS.xl,
+    width: 212,
+    height: 252,
+    borderRadius: RADIUS.lg,
     overflow: 'hidden',
     backgroundColor: COLORS.surfaceElevated,
   },
@@ -271,12 +284,12 @@ const styles = StyleSheet.create({
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
   cuisinePill: {
-    backgroundColor: 'rgba(0,182,122,0.25)',
+    backgroundColor: 'rgba(211,88,57,0.18)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: RADIUS.full,
     borderWidth: 1,
-    borderColor: 'rgba(0,182,122,0.4)',
+    borderColor: 'rgba(211,88,57,0.4)',
   },
   cuisineText: { fontSize: 10, color: COLORS.primary, fontWeight: '700' },
   statusPill: {
@@ -289,6 +302,10 @@ const styles = StyleSheet.create({
   },
   statusDotV: { width: 5, height: 5, borderRadius: 3 },
   statusTxtV: { fontSize: 10, fontWeight: '700' },
+  availableMiniH: { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, backgroundColor: COLORS.primaryLight, alignItems: 'center' },
+  availableMiniLabel: { fontSize: 8, color: COLORS.textMuted, fontWeight: '700' },
+  availableMiniTime: { fontSize: 10, color: COLORS.primary, fontWeight: '900' },
+  timesPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(211,88,57,0.75)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: RADIUS.full },
   distPill: {
     flexDirection: 'row',
     alignItems: 'center',

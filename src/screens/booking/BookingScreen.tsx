@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView,
-  Alert, KeyboardAvoidingView, Platform, Image, Animated,
+  Alert, KeyboardAvoidingView, Platform, Image, Animated, ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { addBookingToCalendar } from '../../services/calendar';
@@ -10,6 +10,8 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../types';
 import { bookingsApi } from '../../api/bookings';
+import { restaurantsApi } from '../../api/restaurants';
+import { waitlistApi } from '../../api/waitlist';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import { sendBookingConfirmation, scheduleBookingReminder } from '../../services/notifications';
 
@@ -24,37 +26,63 @@ const OCCASIONS = [
   { key: 'other',      label: 'სხვა',           emoji: '✨' },
 ];
 
-const TIMES = [
-  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '18:00', '18:30', '19:00', '19:30', '20:00', '20:30',
-  '21:00', '21:30', '22:00',
-];
-
 const GEORGIAN_WEEKDAYS = ['კვი', 'ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ'];
 const GEORGIAN_MONTHS = ['იან', 'თებ', 'მარ', 'აპრ', 'მაი', 'ივნ', 'ივლ', 'აგვ', 'სექ', 'ოქტ', 'ნოე', 'დეკ'];
 
 export default function BookingScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProps>();
-  const { restaurantId, restaurantName, restaurantImage } = route.params as any;
+  const { restaurantId, restaurantName, restaurantImage, date: initialDate, time: initialTime, guests: initialGuests } = route.params as any;
 
   const today = new Date();
   const formatDate = (d: Date) => d.toISOString().split('T')[0];
 
-  const [date, setDate] = useState(formatDate(today));
-  const [time, setTime] = useState('');
-  const [guests, setGuests] = useState(2);
+  const [date, setDate] = useState(initialDate || formatDate(today));
+  const [time, setTime] = useState(initialTime || '');
+  const [guests, setGuests] = useState(Number.isInteger(initialGuests) ? Math.max(1, Math.min(12, initialGuests)) : 2);
   const [comment, setComment] = useState('');
-  const [promoCode, setPromoCode] = useState('');
-  const [promoApplied, setPromoApplied] = useState(false);
-  const [promoError, setPromoError] = useState('');
   const [occasion, setOccasion] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [calendarAdded, setCalendarAdded] = useState(false);
   const [countdown, setCountdown] = useState('');
+  const [availability, setAvailability] = useState<{ slots: { time: string; available: boolean }[]; open: boolean; reason?: string } | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState('');
+  const [activeOffer, setActiveOffer] = useState<import('../../types').RestaurantOffer | null>(null);
+  const [offerLoading, setOfferLoading] = useState(false);
+  const [joiningWaitlist, setJoiningWaitlist] = useState(false);
+  const [waitlistJoined, setWaitlistJoined] = useState(false);
 
   const checkAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let cancelled = false;
+    setOfferLoading(true);
+    restaurantsApi.getOffers(restaurantId, date, time || undefined, guests)
+      .then(res => { if (!cancelled) setActiveOffer((res.data || []).filter(x => x.isActive)[0] || null); })
+      .catch(() => { if (!cancelled) setActiveOffer(null); })
+      .finally(() => { if (!cancelled) setOfferLoading(false); });
+    return () => { cancelled = true; };
+  }, [restaurantId, date, time, guests]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAvailabilityLoading(true);
+    setAvailabilityError('');
+    bookingsApi.getAvailability(restaurantId, date, guests)
+      .then(res => {
+        if (cancelled) return;
+        setAvailability(res.data);
+        const first = res.data?.slots?.find(s => s.available);
+        setTime((prev: string) => res.data?.slots?.some(s => s.available && s.time === prev) ? prev : (first?.time || ''));
+      })
+      .catch(() => {
+        if (!cancelled) { setAvailability(null); setTime(''); setAvailabilityError('ხელმისაწვდომი დროების ჩატვირთვა ვერ მოხერხდა'); }
+      })
+      .finally(() => { if (!cancelled) setAvailabilityLoading(false); });
+    return () => { cancelled = true; };
+  }, [restaurantId, date, guests]);
 
   useEffect(() => {
     if (!success || !date || !time) return;
@@ -76,20 +104,6 @@ export default function BookingScreen() {
     return () => clearInterval(interval);
   }, [success, date, time]);
 
-  const applyPromo = () => {
-    const upper = promoCode.trim().toUpperCase();
-    if (!upper) return;
-    const validCodes = ['SKUP10', 'WELCOME', 'SKUP2026'];
-    if (validCodes.includes(upper)) {
-      setPromoApplied(true);
-      setPromoError('');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else {
-      setPromoError('პრომო კოდი არ არის სწორი');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-  };
-
   const nextDays = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
@@ -97,6 +111,18 @@ export default function BookingScreen() {
   });
 
   const selectedDateObj = new Date(date);
+
+  const joinWaitlist = async () => {
+    if (joiningWaitlist || waitlistJoined) return;
+    setJoiningWaitlist(true);
+    try {
+      await waitlistApi.join({ restaurant_id: restaurantId, date, guests_count: guests });
+      setWaitlistJoined(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e:any) {
+      Alert.alert('შეცდომა', e?.response?.data?.message || 'მოლოდინის სიაში დამატება ვერ მოხერხდა');
+    } finally { setJoiningWaitlist(false); }
+  };
 
   const submit = async () => {
     if (!time) { Alert.alert('', 'გთხოვთ აირჩიოთ დრო'); return; }
@@ -162,11 +188,6 @@ export default function BookingScreen() {
           </View>
         )}
 
-        <View style={styles.freeCancelBadge}>
-          <Ionicons name="shield-checkmark-outline" size={15} color={COLORS.primary} />
-          <Text style={styles.freeCancelText}>უფასო გაუქმება · პირობების გარეშე</Text>
-        </View>
-
         {/* Add to calendar */}
         <TouchableOpacity
           style={[styles.calendarBtn, calendarAdded && styles.calendarBtnDone]}
@@ -231,7 +252,9 @@ export default function BookingScreen() {
               <View style={styles.freeCancelRow}>
                 <Ionicons name="shield-checkmark-outline" size={13} color={COLORS.primary} />
                 <Text style={styles.freeCancelSmall}>უფასო გაუქმება</Text>
-              </View>
+                {activeOffer ? <View style={styles.offerMiniRow}><Ionicons name="pricetag-outline" size={12} color={COLORS.primary} /><Text style={styles.offerMiniText} numberOfLines={1}>{activeOffer.title}{activeOffer.discountPercent ? ' · ' + activeOffer.discountPercent + '%' : ''}</Text></View> : null}
+              {offerLoading ? <Text style={styles.offerLoading}>შეთავაზებებს ვამოწმებთ…</Text> : null}
+            </View>
             </View>
           </View>
 
@@ -297,46 +320,31 @@ export default function BookingScreen() {
             <Text style={styles.sectionTitle}>დრო</Text>
             {time ? <Text style={styles.sectionValue}>{time}</Text> : null}
           </View>
-          <View style={styles.timeGrid}>
-            {TIMES.map((t) => {
+          {availabilityLoading ? <View style={styles.timeStatus}><ActivityIndicator size="small" color={COLORS.primary} /><Text style={styles.timeStatusText}>ვამოწმებთ თავისუფალ მაგიდებს...</Text></View> : null}
+          {!availabilityLoading && availabilityError ? <Text style={styles.availabilityError}>{availabilityError}</Text> : null}
+          {!availabilityLoading && !availabilityError && availability?.open === false ? <Text style={styles.availabilityError}>ამ დღეს რესტორანი დაკეტილია.</Text> : null}
+          {!availabilityLoading && !availabilityError && availability?.open && !availability.slots.some(s => s.available) ? (
+            <TouchableOpacity style={[styles.waitlistBtn, waitlistJoined && styles.waitlistBtnDone]} onPress={joinWaitlist} disabled={joiningWaitlist || waitlistJoined}>
+              {joiningWaitlist ? <ActivityIndicator size="small" color={COLORS.primary}/> : <Ionicons name={waitlistJoined ? 'checkmark-circle-outline' : 'hourglass-outline'} size={17} color={COLORS.primary}/>}
+              <Text style={styles.waitlistText}>{waitlistJoined ? 'მოლოდინის სიაში ხარ' : 'თავისუფალი ადგილი არ არის — შემიყვანე მოლოდინის სიაში'}</Text>
+            </TouchableOpacity>
+          ) : null}          <View style={styles.timeGrid}>
+            {(availability?.slots || []).map(({ time: t, available }) => {
               const isSelected = time === t;
               return (
                 <TouchableOpacity
                   key={t}
-                  style={[styles.timeChip, isSelected && styles.timeChipActive]}
+                  style={[styles.timeChip, !available && styles.timeChipDisabled, isSelected && styles.timeChipActive]}
                   onPress={() => setTime(t)}
+                  disabled={!available}
+                  accessibilityState={{ selected: isSelected, disabled: !available }}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.timeText, isSelected && styles.timeTextActive]}>{t}</Text>
+                  <Text style={[styles.timeText, !available && styles.timeTextDisabled, isSelected && styles.timeTextActive]}>{t}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
-
-          {/* ── Promo Code ── */}
-          <View style={styles.sectionWrap}>
-            <Text style={styles.sectionTitle}>პრომო კოდი</Text>
-            {promoApplied && <Text style={styles.promoSuccess}>✓ გამოყენებულია</Text>}
-          </View>
-          <View style={styles.promoWrap}>
-            <TextInput
-              style={[styles.promoInput, promoApplied && styles.promoInputApplied]}
-              placeholder="შეიყვანე კოდი..."
-              value={promoCode}
-              onChangeText={t => { setPromoCode(t); setPromoError(''); }}
-              autoCapitalize="characters"
-              placeholderTextColor={COLORS.textMuted}
-              editable={!promoApplied}
-            />
-            <TouchableOpacity
-              style={[styles.promoBtn, (!promoCode.trim() || promoApplied) && styles.promoBtnDisabled]}
-              onPress={applyPromo}
-              disabled={!promoCode.trim() || promoApplied}
-            >
-              <Text style={styles.promoBtnText}>{promoApplied ? '✓' : 'გამოყენება'}</Text>
-            </TouchableOpacity>
-          </View>
-          {promoError ? <Text style={styles.promoErrorText}>{promoError}</Text> : null}
 
           {/* ── Special Occasion ── */}
           <View style={styles.sectionWrap}>
@@ -401,10 +409,10 @@ export default function BookingScreen() {
                 <Ionicons name="people-outline" size={15} color={COLORS.textSecondary} />
                 <Text style={styles.summaryText}>{guests} სტუმარი</Text>
               </View>
-              {promoApplied && (
+              {activeOffer && (
                 <View style={styles.summaryRow}>
                   <Ionicons name="pricetag-outline" size={15} color={COLORS.primary} />
-                  <Text style={[styles.summaryText, { color: COLORS.primary }]}>პრომო კოდი გამოყენებულია 🎉</Text>
+                  <Text style={[styles.summaryText, { color: COLORS.primary }]}>{activeOffer.title}{activeOffer.discountPercent ? ' · ' + activeOffer.discountPercent + '%' : ''}</Text>
                 </View>
               )}
             </View>
@@ -452,6 +460,9 @@ const styles = StyleSheet.create({
   restName: { fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
   freeCancelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   freeCancelSmall: { fontSize: 12, color: COLORS.primary, fontWeight: '600' },
+  offerMiniRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  offerMiniText: { flex: 1, fontSize: 11, color: COLORS.primary, fontWeight: '700' },
+  offerLoading: { fontSize: 10, color: COLORS.textMuted, marginTop: 3 },
 
   // Section headers
   sectionWrap: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: SPACING.md, paddingTop: SPACING.lg, paddingBottom: SPACING.sm },
@@ -482,6 +493,14 @@ const styles = StyleSheet.create({
   timeChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   timeText: { fontSize: 14, fontWeight: '700', color: COLORS.textSecondary },
   timeTextActive: { color: '#fff' },
+  timeChipDisabled: { opacity: 0.38 },
+  timeTextDisabled: { color: COLORS.textMuted },
+  timeStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm },
+  timeStatusText: { fontSize: 12, color: COLORS.textSecondary },
+  availabilityError: { fontSize: 12, color: COLORS.error, paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm },
+  waitlistBtn: { marginHorizontal: SPACING.md, marginBottom: SPACING.sm, minHeight: 46, paddingHorizontal: SPACING.md, borderRadius: 12, borderWidth: 1, borderColor: COLORS.primary + '55', backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  waitlistBtnDone: { opacity: 0.75 },
+  waitlistText: { flex: 1, fontSize: 12, color: COLORS.primary, fontWeight: '800', textAlign: 'center' },
 
   // Promo code
   promoWrap: { flexDirection: 'row', paddingHorizontal: SPACING.md, gap: SPACING.sm },

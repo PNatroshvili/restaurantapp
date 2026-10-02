@@ -6,12 +6,12 @@
     "scheme": "ge.skup.restaurants",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0A0E1A"
+      "backgroundColor": "#F7F5F1"
     },
     "ios": {
       "supportsTablet": true
@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#00B67A"
+        "backgroundColor": "#D35839"
       },
       "config": {
         "googleMaps": {

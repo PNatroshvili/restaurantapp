@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { PaginatedResponse, Restaurant, MenuCategory, Review, Cuisine, MenuItem, WorkingHour, RestaurantPhoto } from '../types';
+import { PaginatedResponse, Restaurant, MenuCategory, Review, Cuisine, MenuItem, WorkingHour, RestaurantPhoto, RestaurantOffer, RestaurantTable } from '../types';
 
 export interface RestaurantFilters {
   city?: string;
@@ -9,7 +9,12 @@ export interface RestaurantFilters {
   max_price?: number;
   is_open?: boolean;
   has_booking?: boolean;
+  offers?: boolean;
   q?: string;
+  lat?: number;
+  lng?: number;
+  radius?: number;
+  sort?: 'rating' | 'name' | 'discount' | 'distance';
   page?: number;
   limit?: number;
 }
@@ -28,6 +33,12 @@ export const restaurantsApi = {
   getReviews: (id: string, page = 1) =>
     apiClient.get<PaginatedResponse<Review>>('/reviews', { params: { restaurant_id: id, page } }),
 
+  getRecommended: (limit = 12) => apiClient.get<Restaurant[]>('/restaurants/recommended', { params: { limit } }),
+  getRecommendedForUser: (limit = 12) => apiClient.get<Restaurant[]>('/restaurants/recommended/me', { params: { limit } }),
+  getOffers: (id?: string, date?: string, time?: string, guests = 1) =>
+    apiClient.get<RestaurantOffer[]>('/offers', { params: { restaurant_id: id, date, time, guests } }),
+  getCollections: () => apiClient.get<{ id:string; titleKa:string; subtitle?:string|null; emoji:string; accent:string; bg:string; filterType:string; filterValue?:string|null; isActive:boolean; sortOrder:number }[]>('/collections'),
+
   addFavorite: (restaurantId: string) => apiClient.post(`/favorites`, { restaurant_id: restaurantId }),
   removeFavorite: (restaurantId: string) => apiClient.delete(`/favorites/${restaurantId}`),
   getFavorites: () => apiClient.get<Restaurant[]>('/favorites'),
@@ -42,6 +53,11 @@ export const cuisinesApi = {
 export const managerApi = {
   getMyRestaurant: () =>
     apiClient.get<Restaurant>('/restaurants/mine'),
+  getTables: (restaurantId: string) => apiClient.get<RestaurantTable[]>('/restaurants/' + encodeURIComponent(restaurantId) + '/tables'),
+  createTable: (restaurantId: string, data: Partial<RestaurantTable> & { name: string; capacity: number }) => apiClient.post<RestaurantTable>('/restaurants/' + encodeURIComponent(restaurantId) + '/tables', data),
+  updateTable: (id: string, data: Partial<RestaurantTable>) => apiClient.patch<RestaurantTable>('/restaurants/tables/' + encodeURIComponent(id), data),
+  deleteTable: (id: string) => apiClient.delete('/restaurants/tables/' + encodeURIComponent(id)),
+  getAnalytics: () => apiClient.get<{ totalBookings:number; todayBookings:number; confirmedBookings:number; cancelledBookings:number; guests:number; ratingAvg:number; reviewsCount:number; daily:{date:string;bookings:number;guests:number}[] }>('/restaurants/mine/analytics'),
 
   updateInfo: (id: string, data: {
     name?: string; description?: string; address?: string;
@@ -95,6 +111,18 @@ export const managerApi = {
 
   deleteItem: (id: string, itemId: string) =>
     apiClient.delete(`/restaurants/${id}/menu-items/${itemId}`),
+
+  // waitlist
+  getWaitlist: (restaurantId: string) => apiClient.get<any[]>('/waitlist/restaurant/' + encodeURIComponent(restaurantId)),
+  updateWaitlistStatus: (id: string, status: string) => apiClient.patch<any>('/waitlist/' + encodeURIComponent(id) + '/status', { status }),
+
+  // offers
+  getOffers: () => apiClient.get<RestaurantOffer[]>('/offers/mine'),
+  createOffer: (restaurantId: string, data: Partial<RestaurantOffer> & { title: string }) =>
+    apiClient.post<RestaurantOffer>(`/offers/${restaurantId}`, data),
+  updateOffer: (id: string, data: Partial<RestaurantOffer>) =>
+    apiClient.patch<RestaurantOffer>(`/offers/${id}`, data),
+  deleteOffer: (id: string) => apiClient.delete(`/offers/${id}`),
 
   // photos
   uploadPhoto: (id: string, photoUri: string, isCover = false) => {

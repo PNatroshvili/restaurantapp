@@ -26,6 +26,8 @@ import RestaurantDetailScreen from '../screens/restaurant/RestaurantDetailScreen
 import BookingScreen from '../screens/booking/BookingScreen';
 import ReviewCreateScreen from '../screens/restaurant/ReviewCreateScreen';
 import ProfileEditScreen from '../screens/profile/ProfileEditScreen';
+import NotificationsScreen from '../screens/profile/NotificationsScreen';
+import WaitlistScreen from '../screens/profile/WaitlistScreen';
 import PrivacyScreen from '../screens/legal/PrivacyScreen';
 import TermsScreen from '../screens/legal/TermsScreen';
 import AboutScreen from '../screens/about/AboutScreen';
@@ -36,6 +38,9 @@ import ManagerWorkingHoursScreen from '../screens/manager/ManagerWorkingHoursScr
 import ManagerMenuScreen from '../screens/manager/ManagerMenuScreen';
 import ManagerPhotosScreen from '../screens/manager/ManagerPhotosScreen';
 import ManagerDiscountsScreen from '../screens/manager/ManagerDiscountsScreen';
+import ManagerOffersScreen from '../screens/manager/ManagerOffersScreen';
+import ManagerWaitlistScreen from '../screens/manager/ManagerWaitlistScreen';
+import ManagerTablesScreen from '../screens/manager/ManagerTablesScreen';
 import ManagerEventsScreen from '../screens/manager/ManagerEventsScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
 
@@ -138,9 +143,9 @@ function MainTabs() {
           paddingTop: 6,
           elevation: 24,
           shadowColor: '#000',
-          shadowOpacity: 0.5,
-          shadowOffset: { width: 0, height: -3 },
-          shadowRadius: 16,
+          shadowOpacity: 0.14,
+          shadowOffset: { width: 0, height: -2 },
+          shadowRadius: 12,
         },
       }}
     >
@@ -253,6 +258,9 @@ export default function Navigation() {
         <Stack.Screen name="ManagerMenu" component={ManagerMenuScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="ManagerPhotos" component={ManagerPhotosScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="ManagerDiscounts" component={ManagerDiscountsScreen} options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="ManagerOffers" component={ManagerOffersScreen} options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="ManagerWaitlist" component={ManagerWaitlistScreen} options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="ManagerTables" component={ManagerTablesScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="ManagerEvents" component={ManagerEventsScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="Chat" component={ChatScreen} options={{ animation: 'slide_from_right' }} />
       </Stack.Navigator>

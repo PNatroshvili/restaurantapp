@@ -60,10 +60,6 @@ const DARK_MAP_STYLE = [
 const scoreColor = (rating: number) =>
   rating >= 4.5 ? '#00C896' : rating >= 3.5 ? '#F59E0B' : COLORS.textMuted;
 
-const getDiscount = (id: string): number | null => {
-  const pool = [null, null, null, 10, null, 20, null, null, 30, null, 15, null, null, 25, null];
-  return pool[(id.charCodeAt(0) + id.charCodeAt(id.length - 1)) % pool.length];
-};
 
 const coverOf = (r: Restaurant) =>
   r.cover_photo || r.coverPhoto || r.photos?.find(p => p.isCover)?.url || r.photos?.[0]?.url || null;
@@ -98,7 +94,7 @@ function MapCard({
 }) {
   const cover = coverOf(r);
   const rating = Number(r.ratingAvg);
-  const discount = getDiscount(r.id);
+  const discount = Number(r.discountPercent || 0) || null;
   const sc = scoreColor(rating);
 
   return (
@@ -685,7 +681,7 @@ export default function MapScreen() {
           const r = (feature.properties as any).restaurant as Restaurant;
           const isSelected = selected?.id === r.id;
           const rating = Number(r.ratingAvg);
-          const discount = getDiscount(r.id);
+          const discount = Number(r.discountPercent || 0) || null;
           const sc = scoreColor(rating);
           return (
             <Marker

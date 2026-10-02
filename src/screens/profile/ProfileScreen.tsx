@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, Image, Switch,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, Image, Switch, Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -220,6 +220,11 @@ export default function ProfileScreen() {
             label="ფავორიტები"
             badge={favoritesCount > 0 ? String(favoritesCount) : undefined}
             onPress={() => navigation.navigate('Main', { screen: 'Favorites' } as any)}
+          />
+          <MenuRow
+            icon="hourglass-outline"
+            label="მოლოდინის სია"
+            onPress={() => navigation.navigate('Waitlist')}
             last
           />
         </View>
@@ -253,9 +258,10 @@ export default function ProfileScreen() {
         {/* ─── Section: შეტყობინებები ─── */}
         <SectionHeader title="შეტყობინებები" />
         <View style={styles.section}>
-          <View style={menuRowStyles.row}>
+          <MenuRow icon="notifications-outline" label="შეტყობინებების ცენტრი" onPress={() => navigation.navigate('Notifications')} />
+          <View style={[menuRowStyles.row, menuRowStyles.border]}>
             <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} style={{ marginRight: SPACING.md }} />
-            <Text style={[menuRowStyles.label]}>შეტყობინებები</Text>
+            <Text style={[menuRowStyles.label]}>Push შეტყობინებები</Text>
             <Switch
               value={notifEnabled}
               onValueChange={toggleNotifications}

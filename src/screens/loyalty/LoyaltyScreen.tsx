@@ -8,10 +8,10 @@ import { useAuthStore } from '../../store/authStore';
 import { authApi } from '../../api/auth';
 
 const TIERS = [
-  { name: 'ბრინჯაო', min: 0, max: 499, color: '#CD7F32', emoji: '🥉' },
-  { name: 'ვერცხლი', min: 500, max: 1499, color: '#C0C0C0', emoji: '🥈' },
-  { name: 'ოქრო', min: 1500, max: 2999, color: '#FFD700', emoji: '🏅' },
-  { name: 'პლატინა', min: 3000, max: Infinity, color: '#E5E4E2', emoji: '💎' },
+  { name: 'ბრინჯაო', min: 0, max: 999, color: '#CD7F32', emoji: '🥉' },
+  { name: 'ვერცხლი', min: 1000, max: 4999, color: '#9EA3A8', emoji: '🥈' },
+  { name: 'ოქრო', min: 5000, max: 9999, color: '#C58A22', emoji: '🏅' },
+  { name: 'პლატინა', min: 10000, max: Infinity, color: '#7D8790', emoji: '💎' },
 ];
 
 const REWARDS = [
@@ -24,7 +24,7 @@ const REWARDS = [
 export default function LoyaltyScreen() {
   const navigation = useNavigation();
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
-  const [loyalty, setLoyalty] = useState<{ points: number; tier: string; nextTier: string | null; progress: number; referralCode: string } | null>(null);
+  const [loyalty, setLoyalty] = useState<{ points: number; tier: string; nextTier: string | null; progress: number; referralCode: string; transactions?: { id: string; delta: number; balanceAfter: number; type: string; description?: string | null; createdAt: string }[] } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -79,10 +79,8 @@ export default function LoyaltyScreen() {
         <Text style={styles.sectionTitle}>როგორ დავაგროვო</Text>
         <View style={styles.section}>
           {[
-            { icon: 'calendar-outline' as const, label: 'ჯავშანი', pts: '+50 ქულა' },
-            { icon: 'star-outline' as const, label: 'შეფასება', pts: '+20 ქულა' },
+            { icon: 'calendar-outline' as const, label: 'დადასტურებული ჯავშანი', pts: '+100 ქულა' },
             { icon: 'people-outline' as const, label: 'მეგობრის მოწვევა', pts: '+500 ქულა' },
-            { icon: 'heart-outline' as const, label: 'პირველი ჯავშანი', pts: '+100 ქულა' },
           ].map((item, i, arr) => (
             <View key={item.label} style={[styles.earnRow, i < arr.length - 1 && styles.rowBorder]}>
               <View style={styles.earnIcon}>
@@ -113,6 +111,22 @@ export default function LoyaltyScreen() {
             );
           })}
         </View>
+
+        {/* Transaction history */}
+        {(loyalty?.transactions?.length || 0) > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>ისტორია</Text>
+            <View style={styles.section}>
+              {loyalty!.transactions!.slice(0, 12).map((tx, i, arr) => (
+                <View key={tx.id} style={[styles.earnRow, i < arr.length - 1 && styles.rowBorder]}>
+                  <View style={styles.earnIcon}><Ionicons name={tx.delta >= 0 ? 'arrow-down-outline' : 'arrow-up-outline'} size={17} color={tx.delta >= 0 ? COLORS.success : COLORS.error} /></View>
+                  <View style={{ flex: 1 }}><Text style={styles.earnLabel}>{tx.description || tx.type}</Text><Text style={styles.txDate}>{new Date(tx.createdAt).toLocaleDateString('ka-GE')}</Text></View>
+                  <Text style={[styles.earnPts, { color: tx.delta >= 0 ? COLORS.success : COLORS.error }]}>{tx.delta >= 0 ? '+' : ''}{tx.delta}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
 
         {/* Tiers */}
         <Text style={styles.sectionTitle}>სტატუსები</Text>
@@ -166,6 +180,7 @@ const styles = StyleSheet.create({
   earnIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary + '18', alignItems: 'center', justifyContent: 'center' },
   earnLabel: { flex: 1, fontSize: 15, color: COLORS.text },
   earnPts: { fontSize: 14, fontWeight: '800', color: COLORS.primary },
+  txDate: { fontSize: 9, color: COLORS.textMuted, marginTop: 2 },
 
   rewardsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: SPACING.md, gap: SPACING.sm },
   rewardCard: { flex: 1, minWidth: '45%', backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: SPACING.md, alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: COLORS.primary + '44' },

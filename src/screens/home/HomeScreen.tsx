@@ -9,8 +9,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
-import { Restaurant, Cuisine, RootStackParamList } from '../../types';
+import { Restaurant, Cuisine, RestaurantOffer, RootStackParamList } from '../../types';
 import { restaurantsApi, cuisinesApi } from '../../api/restaurants';
+import { bookingsApi } from '../../api/bookings';
+import { notificationsApi } from '../../api/notifications';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import RestaurantCard from '../../components/restaurant/RestaurantCard';
 import SignatureDishCard, { GEORGIAN_DISHES, SignatureDish } from '../../components/restaurant/SignatureDishCard';
@@ -34,11 +36,6 @@ const CUISINE_COLORS: Record<string, string> = {
   'Bakery': '#D4A017', 'Mexican': '#16A085', 'Indian': '#E53935',
 };
 
-const getDiscount = (id: string): number | null => {
-  const pool = [null, null, null, 10, null, 20, null, null, 30, null, 15, null, null, 25, null];
-  const idx = (id.charCodeAt(0) + id.charCodeAt(id.length - 1)) % pool.length;
-  return pool[idx];
-};
 
 const TODAY_CHIPS = ['დღეს', 'ხვალ', 'შაბ', 'კვი'];
 
@@ -51,15 +48,6 @@ function getTimeGreeting() {
   if (h < 23) return { title: 'საღამო მშვიდობისა', subtitle: 'ვახშამი?', emoji: '🌙' };
   return { title: 'გვიანი ვახშამი', subtitle: 'ახლა ღია', emoji: '⭐' };
 }
-
-// Curated collections — frontend-only, filter from existing data
-const COLLECTIONS = [
-  { id: 'romantic',  emoji: '💑',  title: 'წყვილებისთვის',  subtitle: 'რომანტიული ვახშამი',      accent: '#8B4FCE', bg: '#1A0D2D' },
-  { id: 'family',    emoji: '👨‍👩‍👧', title: 'ოჯახური',        subtitle: 'ბავშვებისთვის',          accent: '#27AE60', bg: '#0D2018' },
-  { id: 'premium',   emoji: '✨',   title: 'პრემიუმ',         subtitle: 'ლუქს გამოცდილება',        accent: '#F59E0B', bg: '#241800' },
-  { id: 'quick',     emoji: '⚡',   title: 'სწრაფი',          subtitle: '30 წუთამდე',              accent: '#3B82F6', bg: '#0A1528' },
-  { id: 'hidden',    emoji: '🗝️',  title: 'ფარული',          subtitle: 'ადგილობრივის საიდუმლო',   accent: '#EC4899', bg: '#1F0A1A' },
-];
 
 const georgiansFirst = (list: Restaurant[]) => [
   ...list.filter(r => r.cuisine?.name?.toLowerCase().includes('georgian') || r.cuisine?.slug?.includes('georgian')),
@@ -78,6 +66,12 @@ export default function HomeScreen() {
   const [nearby, setNearby] = useState<Restaurant[]>([]);
   const [cuisines, setCuisines] = useState<Cuisine[]>([]);
   const [recentlyViewed, setRecentlyViewed] = useState<Restaurant[]>([]);
+  const [activeOffers, setActiveOffers] = useState<RestaurantOffer[]>([]);
+  const [availableTonight, setAvailableTonight] = useState<Restaurant[]>([]);
+  const [recommended, setRecommended] = useState<Restaurant[]>([]);
+  const [collections, setCollections] = useState<{ id:string; titleKa:string; subtitle?:string|null; emoji:string; accent:string; bg:string; filterType:string; filterValue?:string|null; isActive:boolean; sortOrder:number }[]>([]);
+  const [loadError, setLoadError] = useState('');
+  const [notificationCount, setNotificationCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -88,16 +82,28 @@ export default function HomeScreen() {
 
   const load = async () => {
     setLoading(true);
+    setLoadError('');
     try {
-      const [popRes, newRes, cusRes] = await Promise.all([
+      const [popRes, newRes, cusRes, colRes, offerRes, availabilityRes, recommendationRes] = await Promise.allSettled([
         restaurantsApi.getAll({ limit: 12, city: 'თბილისი' }),
         restaurantsApi.getAll({ limit: 8, city: 'თბილისი' }),
         cuisinesApi.getAll(),
+        restaurantsApi.getCollections(),
+        restaurantsApi.getOffers(undefined, new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }), undefined, 2),
+        bookingsApi.availabilitySummary(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }), 2, 24),
+        (useAuthStore.getState().isAuthenticated ? restaurantsApi.getRecommendedForUser(12) : restaurantsApi.getRecommended(12)),
       ]);
-      setPopular(popRes.data?.data || []);
-      setNewest(newRes.data?.data || []);
-      setCuisines(Array.isArray(cusRes.data) ? cusRes.data : []);
-    } catch {}
+      if (popRes.status === 'fulfilled') setPopular(popRes.value.data?.data || []);
+      else setLoadError('რესტორნების ჩატვირთვა ვერ მოხერხდა. სცადე თავიდან.');
+      if (newRes.status === 'fulfilled') setNewest(newRes.value.data?.data || []);
+      if (cusRes.status === 'fulfilled') setCuisines(Array.isArray(cusRes.value.data) ? cusRes.value.data : []);
+      if (colRes.status === 'fulfilled') setCollections((colRes.value.data || []).filter(x => x.isActive).sort((a,b) => a.sortOrder - b.sortOrder));
+      if (offerRes.status === 'fulfilled') setActiveOffers(Array.isArray(offerRes.value.data) ? offerRes.value.data.filter(x => x.isActive) : []);
+      if (availabilityRes.status === 'fulfilled') setAvailableTonight(availabilityRes.value.data?.restaurants || []);
+      if (recommendationRes.status === 'fulfilled') setRecommended(recommendationRes.value.data || []);
+    } catch {
+      setLoadError('მონაცემების ჩატვირთვა ვერ მოხერხდა. სცადე თავიდან.');
+    }
     setLoading(false);
   };
 
@@ -109,17 +115,8 @@ export default function HomeScreen() {
       const last = await Location.getLastKnownPositionAsync();
       const loc = last ?? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
       const { latitude, longitude } = loc.coords;
-      const res = await restaurantsApi.getAll({ city: 'თბილისი', limit: 50 });
-      const all = res.data?.data || [];
-      const withDist = all
-        .map(r => {
-          const dlat = Number(r.latitude) - latitude;
-          const dlng = Number(r.longitude) - longitude;
-          return { ...r, _dist: Math.sqrt(dlat * dlat + dlng * dlng) };
-        })
-        .sort((a, b) => a._dist - b._dist)
-        .slice(0, 10);
-      setNearby(withDist);
+      const res = await restaurantsApi.getAll({ lat: latitude, lng: longitude, radius: 5000, sort: 'distance', limit: 10 });
+      setNearby(res.data?.data || []);
     } catch {}
     setNearbyLoading(false);
   };
@@ -136,9 +133,15 @@ export default function HomeScreen() {
     getRecentlyViewed().then(setRecentlyViewed);
   }, []);
 
+  useEffect(() => {
+    if (!isAuthenticated) { setNotificationCount(0); return; }
+    notificationsApi.getAll().then(res => setNotificationCount(res.data?.unreadCount || 0)).catch(() => setNotificationCount(0));
+  }, [isAuthenticated]);
+
   const goToSearch = (params?: any) => navigation.navigate('Search', params);
 
-  const withDiscounts = popular.filter(r => getDiscount(r.id) !== null);
+  const offerRestaurantIds = new Set(activeOffers.map(o => o.restaurantId));
+  const withDiscounts = popular.filter(r => Number(r.discountPercent || 0) > 0 || offerRestaurantIds.has(r.id));
   const trending = [...popular]
     .sort((a, b) => (b.reviewsCount ?? 0) - (a.reviewsCount ?? 0))
     .slice(0, 10);
@@ -157,7 +160,7 @@ export default function HomeScreen() {
   }, [navigation, cuisines]);
 
   const renderCard = useCallback(({ item }: { item: Restaurant }) => (
-    <RestaurantCard restaurant={item} discount={getDiscount(item.id)} />
+    <RestaurantCard restaurant={item} discount={Number(item.discountPercent || 0) || null} />
   ), []);
 
   const renderCuisineTile = useCallback(({ item }: { item: Cuisine }) => {
@@ -187,6 +190,8 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
       >
 
+        {loadError ? <View style={styles.errorBanner}><Ionicons name="warning-outline" size={16} color={COLORS.primary}/><Text style={styles.errorBannerText}>{loadError}</Text><TouchableOpacity onPress={load}><Text style={styles.errorRetry}>თავიდან</Text></TouchableOpacity></View> : null}
+
         {/* ─── Header ──────────────────────────────────────────────────── */}
         <View style={styles.header}>
           <LukmaLogo size={34} />
@@ -196,6 +201,7 @@ export default function HomeScreen() {
             <Ionicons name="chevron-down" size={11} color={COLORS.textSecondary} />
           </TouchableOpacity>
           <View style={styles.headerRight}>
+            {isAuthenticated ? <TouchableOpacity style={styles.notificationBtn} onPress={() => navigation.navigate('Notifications')} activeOpacity={0.8} accessibilityLabel="შეტყობინებები"><Ionicons name="notifications-outline" size={19} color={COLORS.text}/>{notificationCount > 0 ? <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{notificationCount > 9 ? '9+' : notificationCount}</Text></View> : null}</TouchableOpacity> : null}
             {isAuthenticated ? (
               <TouchableOpacity
                 style={styles.avatarBtn}
@@ -249,6 +255,62 @@ export default function HomeScreen() {
             </View>
           </ScrollView>
         </View>
+
+        {recommended.length > 0 && (
+          <View style={styles.section}>
+            <SectionTitle title="შენთვის შერჩეული" onSeeAll={() => goToSearch()} />
+            <FlatList horizontal showsHorizontalScrollIndicator={false} data={recommended.slice(0,8)} keyExtractor={r=>r.id} contentContainerStyle={{paddingHorizontal:SPACING.md,gap:SPACING.md}} renderItem={({item})=><View style={{width:212}}><RestaurantCard restaurant={item}/></View>} />
+          </View>
+        )}
+
+        {/* ─── Available tonight ───────────────────────────────────────── */}
+        {availableTonight.length > 0 && (
+          <View style={styles.section}>
+            <SectionTitle title="დღეს ხელმისაწვდომია" left={<Ionicons name="time-outline" size={17} color={COLORS.primary} />} onSeeAll={() => goToSearch()} />
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={availableTonight.slice(0, 8)}
+              keyExtractor={(r) => r.id}
+              contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.md }}
+              renderItem={({ item }) => (
+                <View style={{ width: 212 }}>
+                  <RestaurantCard restaurant={item} discount={Number(item.discountPercent || 0) || null} availableTimes={item.availableTimes} tag="დღეს" />
+                  {item.availableTimes?.length ? (
+                    <View style={styles.availabilityRow}>
+                      {item.availableTimes.slice(0, 3).map(t => <TouchableOpacity key={t} style={styles.availabilityChip} onPress={() => navigation.navigate('Booking', { restaurantId: item.id, restaurantName: item.name })}><Ionicons name="time-outline" size={10} color={COLORS.primary} /><Text style={styles.availabilityChipText}>{t}</Text></TouchableOpacity>)}
+                    </View>
+                  ) : null}
+                </View>
+              )}
+            />
+          </View>
+        )}
+
+        {collections.length > 0 && (
+          <View style={styles.section}>
+            <SectionTitle title="შეარჩიე განწყობა" onSeeAll={() => goToSearch()} />
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={collections.slice(0, 6)}
+              keyExtractor={c => c.id}
+              contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.sm }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.collectionCard, { backgroundColor: item.bg || COLORS.surface, borderColor: (item.accent || COLORS.primary) + '44' }]}
+                  onPress={() => goToSearch(item.filterType === 'cuisine' && item.filterValue ? { cuisineId:item.filterValue } : undefined)}
+                  activeOpacity={0.82}
+                >
+                  <Text style={styles.collectionEmoji}>{item.emoji}</Text>
+                  <Text style={[styles.collectionTitle, { color: item.accent || COLORS.primary }]} numberOfLines={1}>{item.titleKa}</Text>
+                  <Text style={styles.collectionSub} numberOfLines={2}>{item.subtitle || 'შეარჩიე რესტორანი'}</Text>
+                  <View style={[styles.collectionArrow, { backgroundColor:(item.accent || COLORS.primary) + '18' }]}><Ionicons name="arrow-forward" size={12} color={item.accent || COLORS.primary}/></View>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        )}
 
         {/* ─── Georgian Classics ───────────────────────────────────────── */}
         <View style={styles.section}>
@@ -340,7 +402,7 @@ export default function HomeScreen() {
               keyExtractor={(r) => r.id}
               contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.md }}
               renderItem={({ item }) => (
-                <RestaurantCard restaurant={item} discount={getDiscount(item.id)} tag="⚡ სპეციალური" />
+                <RestaurantCard restaurant={item} discount={Number(item.discountPercent || 0) || null} tag="⚡ სპეციალური" />
               )}
             />
           </View>
@@ -400,7 +462,7 @@ export default function HomeScreen() {
                 keyExtractor={(r) => r.id}
                 contentContainerStyle={{ paddingHorizontal: SPACING.md, gap: SPACING.md }}
                 renderItem={({ item }) => (
-                  <RestaurantCard restaurant={item} discount={getDiscount(item.id)} tag="🔥 ტრენდი" />
+                  <RestaurantCard restaurant={item} discount={Number(item.discountPercent || 0) || null} tag="🔥 ტრენდი" />
                 )}
               />
             )}
@@ -430,7 +492,7 @@ export default function HomeScreen() {
               ? [1, 2, 3].map(i => <SkeletonRestaurantRow key={i} />)
               : georgiansFirst(newest).map((r, i) => (
                   <FadeSlideIn key={r.id} index={i}>
-                    <RestaurantCard restaurant={r} horizontal discount={getDiscount(r.id)} />
+                    <RestaurantCard restaurant={r} horizontal discount={Number(r.discountPercent || 0) || null} />
                   </FadeSlideIn>
                 ))
             }
@@ -548,6 +610,9 @@ const styles = StyleSheet.create({
   },
   locationText: { fontSize: 13, fontWeight: '700', color: COLORS.text },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginLeft: 'auto' },
+  notificationBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  notificationBadge: { position: 'absolute', top: -2, right: -2, minWidth: 15, height: 15, paddingHorizontal: 3, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: COLORS.background },
+  notificationBadgeText: { fontSize: 8, fontWeight: '900', color: '#fff' },
   avatarBtn: {
     width: 36,
     height: 36,
@@ -688,5 +753,11 @@ const styles = StyleSheet.create({
 
   // Generic section
   section: { marginBottom: SPACING.lg },
+  errorBanner: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, padding: SPACING.sm, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary + '33', backgroundColor: COLORS.primaryLight, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  errorBannerText: { flex: 1, fontSize: 11, color: COLORS.textSecondary },
+  errorRetry: { fontSize: 11, color: COLORS.primary, fontWeight: '800' },
   sectionSub: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', marginTop: 1 },
+  availabilityRow: { flexDirection: 'row', gap: 5, marginTop: 7 },
+  availabilityChip: { flex: 1, minHeight: 30, borderRadius: 9, borderWidth: 1, borderColor: COLORS.primary + '44', backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 3 },
+  availabilityChipText: { fontSize: 10, fontWeight: '900', color: COLORS.primary },
 });

@@ -24,15 +24,20 @@ export interface Restaurant {
   longitude: number;
   phone?: string;
   discountPercent?: number;
+  bestOfferDiscount?: number | null;
+  avgMenuPrice?: number | null;
+  priceLevel?: 1 | 2 | 3 | null;
   ratingAvg: number;
   reviewsCount?: number;
   status: 'draft' | 'pending' | 'approved' | 'rejected' | 'suspended';
   distance?: number;
   isOpen?: boolean;
+  availableTimes?: string[];
   coverPhoto?: string;
   cover_photo?: string; // returned by mapCoverPhoto in service
   photos?: RestaurantPhoto[];
   cuisine?: Cuisine;
+  menuCategories?: MenuCategory[];
   workingHours?: WorkingHour[];
 }
 
@@ -67,10 +72,46 @@ export interface Review {
   userId: string;
   restaurantId: string;
   rating: number;
+  foodRating?: number | null;
+  serviceRating?: number | null;
+  ambienceRating?: number | null;
+  verified?: boolean;
+  photos?: { id: string; url: string; createdAt?: string }[];
+  restaurantReply?: string | null;
+  restaurantReplyAt?: string | null;
   comment?: string;
+  offerId?: string | null;
+  discountPercentApplied?: number | null;
   status: 'pending' | 'approved' | 'hidden';
   createdAt: string;
   user?: Pick<User, 'id' | 'name' | 'avatar'>;
+}
+
+export interface RestaurantTable {
+  id: string;
+  restaurantId: string;
+  name: string;
+  capacity: number;
+  shape: 'round' | 'square' | 'rectangle';
+  posX: number;
+  posY: number;
+  zone?: string | null;
+  isActive: boolean;
+}
+
+export interface RestaurantOffer {
+  id: string;
+  restaurantId: string;
+  title: string;
+  description?: string;
+  discountPercent?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  minimumGuests?: number | null;
+  maximumGuests?: number | null;
+  isActive: boolean;
 }
 
 export interface Booking {
@@ -82,6 +123,9 @@ export interface Booking {
   guestsCount: number;
   comment?: string;
   status: 'pending' | 'confirmed' | 'cancelled' | 'rejected';
+  offerId?: string | null;
+  discountPercentApplied?: number | null;
+  tableId?: string | null;
   restaurant?: Pick<Restaurant, 'id' | 'name' | 'address' | 'cover_photo'>;
   user?: Pick<User, 'id' | 'name' | 'phone' | 'email'>;
 }
@@ -121,10 +165,12 @@ export interface PaginatedResponse<T> {
 export type RootStackParamList = {
   Onboarding: undefined;
   Main: { screen?: keyof MainTabParamList; params?: any } | undefined;
-  RestaurantDetail: { id: string };
-  Booking: { restaurantId: string; restaurantName: string };
+  RestaurantDetail: { id: string; date?: string; time?: string; guests?: number };
+  Booking: { restaurantId: string; restaurantName?: string; restaurantImage?: string; date?: string; time?: string; guests?: number };
   ReviewCreate: { restaurantId: string };
   ProfileEdit: undefined;
+  Notifications: undefined;
+  Waitlist: undefined;
   Search: { cuisineId?: string; cuisineName?: string; dishQuery?: string } | undefined;
   Login: undefined;
   Register: undefined;
@@ -139,6 +185,9 @@ export type RootStackParamList = {
   ManagerMenu: { restaurantId: string };
   ManagerPhotos: { restaurantId: string };
   ManagerDiscounts: { restaurantId: string };
+  ManagerOffers: { restaurantId: string };
+  ManagerWaitlist: { restaurantId: string };
+  ManagerTables: { restaurantId: string };
   ManagerEvents: { restaurantId: string };
   Chat: { bookingId: string; restaurantName: string };
 };

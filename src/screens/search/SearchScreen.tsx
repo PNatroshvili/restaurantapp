@@ -12,6 +12,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Restaurant, Cuisine, RootStackParamList } from '../../types';
 import { restaurantsApi, cuisinesApi } from '../../api/restaurants';
+import { bookingsApi } from '../../api/bookings';
 import { COLORS, SPACING, RADIUS } from '../../constants';
 import { SkeletonRestaurantRow } from '../../components/common/Skeleton';
 
@@ -35,13 +36,16 @@ function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): num
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+const bookingDateLabel = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString('ka-GE', { weekday: 'short', day: 'numeric', month: 'short' });
+const addDaysToTbilisi = (days: number) => {
+  const base = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }) + 'T12:00:00');
+  base.setDate(base.getDate() + days);
+  return base.toLocaleDateString('en-CA');
+};
+
 const HISTORY_KEY = 'search_history';
 const MAX_HISTORY = 5;
 
-const getDiscount = (id: string): number | null => {
-  const pool = [null, null, null, 10, null, 20, null, null, 30, null, 15, null, null, 25, null];
-  return pool[(id.charCodeAt(0) + id.charCodeAt(id.length - 1)) % pool.length];
-};
 
 const coverOf = (r: Restaurant): string | null =>
   r.cover_photo || r.coverPhoto || r.photos?.find(p => p.isCover)?.url || r.photos?.[0]?.url || null;
@@ -79,6 +83,11 @@ export default function SearchScreen() {
 
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [cuisines, setCuisines] = useState<Cuisine[]>([]);
+  const [searchError, setSearchError] = useState('');
+  const [bookingDate, setBookingDate] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tbilisi' }));
+  const [bookingGuests, setBookingGuests] = useState(2);
+  const [availabilityMap, setAvailabilityMap] = useState<Record<string, string[]>>({});
+  const [searchRetry, setSearchRetry] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(route.params?.dishQuery || '');
   const [inputFocused, setInputFocused] = useState(false);
@@ -130,21 +139,57 @@ export default function SearchScreen() {
   useEffect(() => {
     inputRef.current?.focus();
     AsyncStorage.getItem(HISTORY_KEY).then(v => { if (v) setHistory(JSON.parse(v)); });
-    (async () => {
-      try {
-        const [restRes, cusRes] = await Promise.allSettled([
-          restaurantsApi.getAll({ city: 'თბილისი', limit: 2000 }),
-          cuisinesApi.getAll(),
-        ]);
-        if (restRes.status === 'fulfilled') setRestaurants(restRes.value.data?.data || []);
-        if (cusRes.status === 'fulfilled') {
-          const raw: Cuisine[] = Array.isArray(cusRes.value.data) ? cusRes.value.data : [];
-          setCuisines(raw.sort((a, b) => (a.name?.toLowerCase().includes('ქართ') ? -1 : 0) - (b.name?.toLowerCase().includes('ქართ') ? -1 : 0)));
-        }
-      } catch {}
-      setLoading(false);
-    })();
+    cuisinesApi.getAll().then(res => {
+      const raw: Cuisine[] = Array.isArray(res.data) ? res.data : [];
+      setCuisines(raw.sort((a, b) => (a.name?.toLowerCase().includes('ქართ') ? -1 : 0) - (b.name?.toLowerCase().includes('ქართ') ? -1 : 0)));
+    }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await bookingsApi.availabilitySummary(bookingDate, bookingGuests, 100);
+        if (cancelled) return;
+        const next: Record<string, string[]> = {};
+        (res.data?.restaurants || []).forEach(r => { next[r.id] = r.availableTimes || []; });
+        setAvailabilityMap(next);
+      } catch {
+        if (!cancelled) setAvailabilityMap({});
+      }
+    }, 120);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [bookingDate, bookingGuests]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      setSearchError('');
+      try {
+        const res = await restaurantsApi.getAll({
+          city: 'თბილისი',
+          q: searchQuery.trim() || undefined,
+          cuisine_id: filterCuisine || undefined,
+          min_rating: filterRating || undefined,
+          is_open: filterOpen || undefined,
+          offers: filterDiscount || undefined,
+          lat: filterNearMe ? userLocation?.lat : undefined,
+          lng: filterNearMe ? userLocation?.lng : undefined,
+          radius: filterNearMe ? 5000 : undefined,
+          sort: sortKey === 'distance' ? 'distance' : sortKey,
+          page: 1,
+          limit: 100,
+        });
+        if (!cancelled) setRestaurants(res.data?.data || []);
+      } catch {
+        if (!cancelled) { setRestaurants([]); setSearchError('რესტორნების ძიება ვერ მოხერხდა. სცადე თავიდან.'); }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 220);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searchQuery, filterCuisine, filterRating, filterOpen, filterDiscount, filterNearMe, userLocation, sortKey, searchRetry]);
 
   const saveHistory = useCallback(async (query: string) => {
     const q = query.trim();
@@ -212,8 +257,11 @@ export default function SearchScreen() {
     if (filterOpen && !r.isOpen) return false;
     if (filterRating && Number(r.ratingAvg) < filterRating) return false;
     if (filterCuisine && r.cuisine?.id !== filterCuisine && (r as any).cuisineId !== filterCuisine) return false;
-    if (filterPrice && (r as any).priceLevel && (r as any).priceLevel !== filterPrice) return false;
-    if (filterDiscount && getDiscount(r.id) === null) return false;
+    if (filterPrice) {
+      const level = Number((r as any).priceLevel || 0) || (Number(r.avgMenuPrice) > 0 ? (Number(r.avgMenuPrice) < 15 ? 1 : Number(r.avgMenuPrice) < 30 ? 2 : 3) : 0);
+      if (level !== filterPrice) return false;
+    }
+    if (filterDiscount && Math.max(Number(r.discountPercent || 0), Number(r.bestOfferDiscount || 0)) <= 0) return false;
     if (filterDietary.size > 0) {
       const haystack = `${r.name} ${r.description || ''} ${r.cuisine?.name || ''}`.toLowerCase();
       if (![...filterDietary].every(key => DIETARY_OPTIONS.find(d => d.key === key)?.keywords.some(kw => haystack.includes(kw)))) return false;
@@ -231,7 +279,7 @@ export default function SearchScreen() {
            - distanceKm(userLocation.lat, userLocation.lng, Number(b.latitude), Number(b.longitude));
     }
     if (sortKey === 'rating') return Number(b.ratingAvg) - Number(a.ratingAvg);
-    if (sortKey === 'discount') return (getDiscount(b.id) || 0) - (getDiscount(a.id) || 0);
+    if (sortKey === 'discount') return Math.max(Number(b.discountPercent || 0), Number(b.bestOfferDiscount || 0)) - Math.max(Number(a.discountPercent || 0), Number(a.bestOfferDiscount || 0));
     return a.name.localeCompare(b.name);
   });
 
@@ -311,6 +359,24 @@ export default function SearchScreen() {
           ))}
         </View>
       )}
+
+      {/* ── Booking context ── */}
+      <View style={styles.bookingContextBar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bookingContextRow}>
+          {[0,1,2,3,4].map(offset => {
+            const date = addDaysToTbilisi(offset);
+            return <TouchableOpacity key={date} style={[styles.dateChip, bookingDate === date && styles.dateChipActive]} onPress={() => setBookingDate(date)}>
+              <Text style={[styles.dateChipLabel, bookingDate === date && styles.dateChipLabelActive]}>{offset === 0 ? 'დღეს' : offset === 1 ? 'ხვალ' : bookingDateLabel(date)}</Text>
+            </TouchableOpacity>;
+          })}
+          <View style={styles.guestsControl}>
+            <TouchableOpacity onPress={() => setBookingGuests(v => Math.max(1, v - 1))}><Ionicons name="remove" size={14} color={COLORS.text}/></TouchableOpacity>
+            <Ionicons name="people-outline" size={14} color={COLORS.textSecondary}/>
+            <Text style={styles.guestsControlText}>{bookingGuests}</Text>
+            <TouchableOpacity onPress={() => setBookingGuests(v => Math.min(12, v + 1))}><Ionicons name="add" size={14} color={COLORS.text}/></TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
 
       {/* ── Primary filter bar ── */}
       <View style={styles.filterBar}>
@@ -394,6 +460,8 @@ export default function SearchScreen() {
       )}
 
       {/* ── Results bar ── */}
+      {searchError ? <View style={styles.searchErrorBanner}><Ionicons name="warning-outline" size={15} color={COLORS.primary}/><Text style={styles.searchErrorText}>{searchError}</Text><TouchableOpacity onPress={() => { setSearchError(''); setSearchRetry(v => v + 1); }}><Text style={styles.searchRetry}>Retry</Text></TouchableOpacity></View> : null}
+
       <View style={styles.resultsBar}>
         <Text style={styles.resultsCount}>
           {loading ? 'იტვირთება...' : `${displayResults.length} რესტორანი`}
@@ -457,7 +525,7 @@ export default function SearchScreen() {
           }
           renderItem={({ item, index }) => (
             <FadeInItem index={index}>
-              <SearchCard restaurant={item} navigation={navigation} userLocation={userLocation} />
+              <SearchCard restaurant={item} navigation={navigation} userLocation={userLocation} availableTimes={availabilityMap[item.id]} bookingDate={bookingDate} bookingGuests={bookingGuests} />
             </FadeInItem>
           )}
           ItemSeparatorComponent={() => <View style={styles.sep} />}
@@ -593,12 +661,12 @@ export default function SearchScreen() {
   );
 }
 
-function SearchCard({ restaurant: r, navigation, userLocation }: { restaurant: Restaurant; navigation: any; userLocation: { lat: number; lng: number } | null }) {
+function SearchCard({ restaurant: r, navigation, userLocation, availableTimes, bookingDate, bookingGuests }: { restaurant: Restaurant; navigation: any; userLocation: { lat: number; lng: number } | null; availableTimes?: string[]; bookingDate: string; bookingGuests: number }) {
   const cover = coverOf(r);
   const rating = Number(r.ratingAvg) || 0;
   const score = rating.toFixed(1);
   const sc = scoreColor(rating);
-  const discount = getDiscount(r.id);
+  const discount = Math.max(Number(r.discountPercent || 0), Number(r.bestOfferDiscount || 0)) || null;
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
@@ -606,7 +674,7 @@ function SearchCard({ restaurant: r, navigation, userLocation }: { restaurant: R
   const onPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Keyboard.dismiss();
-    navigation.navigate('RestaurantDetail', { id: r.id });
+    navigation.navigate('RestaurantDetail', { id: r.id, date: bookingDate, guests: bookingGuests, time: availableTimes?.[0] });
   };
 
   return (
@@ -677,6 +745,8 @@ function SearchCard({ restaurant: r, navigation, userLocation }: { restaurant: R
             })()}
           </View>
 
+          {availableTimes?.length ? <View style={styles.cardAvailability}><Text style={styles.cardAvailabilityLabel}>თავისუფალია</Text>{availableTimes.slice(0,4).map(t=><TouchableOpacity key={t} style={styles.cardTimeChip} onPress={() => navigation.navigate('Booking', { restaurantId: r.id, restaurantName: r.name, date: bookingDate, time: t, guests: bookingGuests })}><Text style={styles.cardTimeText}>{t}</Text></TouchableOpacity>)}</View> : null}
+
           {r.address ? (
             <View style={styles.cardAddrRow}>
               <Ionicons name="location-outline" size={11} color={COLORS.textMuted} />
@@ -686,7 +756,7 @@ function SearchCard({ restaurant: r, navigation, userLocation }: { restaurant: R
 
           <TouchableOpacity
             style={styles.bookBtn}
-            onPress={() => navigation.navigate('Booking', { restaurantId: r.id })}
+            onPress={() => navigation.navigate('Booking', { restaurantId: r.id, restaurantName: r.name, date: bookingDate, guests: bookingGuests })}
           >
             <Ionicons name="calendar-outline" size={13} color="#fff" />
             <Text style={styles.bookBtnText}>მაგიდის ჯავშნა</Text>
@@ -746,6 +816,22 @@ const styles = StyleSheet.create({
   ratingStarsRow: { flexDirection: 'row', gap: 4 },
   ratingStar: { alignItems: 'center', gap: 4, flex: 1 },
   ratingStarNum: { fontSize: 10, color: COLORS.textSecondary, fontWeight: '600' },
+
+  searchErrorBanner: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, paddingHorizontal: SPACING.sm, paddingVertical: 8, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primary + '33', backgroundColor: COLORS.primaryLight, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  searchErrorText: { flex: 1, fontSize: 11, color: COLORS.textSecondary },
+  searchRetry: { fontSize: 11, fontWeight: '800', color: COLORS.primary },
+  bookingContextBar: { backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  bookingContextRow: { paddingHorizontal: SPACING.md, paddingVertical: 8, gap: 7, alignItems: 'center' },
+  dateChip: { height: 38, minWidth: 72, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceElevated, alignItems: 'center', justifyContent: 'center' },
+  dateChipActive: { backgroundColor: COLORS.primaryLight, borderColor: COLORS.primary + '55' },
+  dateChipLabel: { fontSize: 10, fontWeight: '800', color: COLORS.textSecondary },
+  dateChipLabelActive: { color: COLORS.primary },
+  guestsControl: { height: 38, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
+  guestsControlText: { minWidth: 14, textAlign: 'center', fontSize: 11, fontWeight: '900', color: COLORS.text },
+  cardAvailability: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 9, flexWrap: 'wrap' },
+  cardAvailabilityLabel: { fontSize: 8, fontWeight: '800', color: COLORS.textMuted, marginRight: 2 },
+  cardTimeChip: { minWidth: 43, height: 27, borderRadius: 7, borderWidth: 1, borderColor: COLORS.primary + '44', backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  cardTimeText: { fontSize: 9, fontWeight: '900', color: COLORS.primary },
 
   resultsBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

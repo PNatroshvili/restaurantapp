@@ -24,22 +24,19 @@ const HERO_HEIGHT = 280;
 
 type RouteProps = RouteProp<RootStackParamList, 'RestaurantDetail'>;
 
-const getDiscount = (id: string): number | null => {
-  const pool = [null, null, null, 10, null, 20, null, null, 30, null, 15, null, null, 25, null];
-  return pool[(id.charCodeAt(0) + id.charCodeAt(id.length - 1)) % pool.length];
-};
 
 export default function RestaurantDetailScreen() {
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const requireAuth = useRequireAuth();
   const insets = useSafeAreaInsets();
-  const { id } = route.params;
+  const { id, date: bookingDate, time: bookingTime, guests: bookingGuests } = route.params;
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [menu, setMenu] = useState<MenuCategory[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [events, setEvents] = useState<RestaurantEvent[]>([]);
+  const [offers, setOffers] = useState<import('../../types').RestaurantOffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFav, setIsFav] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'menu' | 'reviews'>('info');
@@ -72,6 +69,7 @@ export default function RestaurantDetailScreen() {
           if (mRes.status === 'fulfilled') setMenu(mRes.value.data || []);
           if (revRes.status === 'fulfilled') setReviews(revRes.value.data?.data || []);
           eventsApi.getForRestaurant(id).then(r => setEvents(r.data)).catch(() => {});
+          restaurantsApi.getOffers(id).then(r => setOffers((r.data || []).filter(x => x.isActive))).catch(() => {});
         }
       } catch {
         Alert.alert('შეცდომა', 'ინფორმაცია ვერ ჩაიტვირთა');
@@ -110,7 +108,7 @@ export default function RestaurantDetailScreen() {
     const rating = Number(restaurant.ratingAvg) || 0;
     const score = rating > 0 ? ` · ${rating.toFixed(1)}/5 ⭐` : '';
     Share.share({
-      message: `🍽️ ${restaurant.name}${score}\n📍 ${restaurant.address}\n\nგაიცანი ეს რესტორანი GastroMap-ზე!`,
+      message: `🍽️ ${restaurant.name}${score}\n📍 ${restaurant.address}\n\nგაიცანი ეს რესტორანი LUKMA-ზე!`,
       title: restaurant.name,
     });
   };
@@ -130,21 +128,10 @@ export default function RestaurantDetailScreen() {
   const rating = Number(restaurant.ratingAvg) || 0;
   const score = rating.toFixed(1);
   const scoreNum = rating;
-  const scoreColor = scoreNum >= 4.5 ? '#00C896' : scoreNum >= 3.5 ? '#F59E0B' : COLORS.textSecondary;
-  const discount = getDiscount(id);
+  const scoreColor = scoreNum >= 4.5 ? COLORS.scoreGood : scoreNum >= 3.5 ? COLORS.scoreMid : COLORS.textSecondary;
+  const discount = Number(restaurant?.discountPercent || 0) || null;
   const today = new Date().getDay();
   const todayHours = restaurant.workingHours?.find(wh => wh.day === today);
-
-  // Live wait time estimate based on time of day + day of week
-  const waitTime = (() => {
-    const h = new Date().getHours();
-    const isWeekend = today === 0 || today === 6;
-    const isPeak = (h >= 12 && h <= 14) || (h >= 19 && h <= 22);
-    if (!restaurant.isOpen) return null;
-    const base = isPeak ? (isWeekend ? 30 : 20) : (isWeekend ? 15 : 5);
-    const jitter = (id.charCodeAt(0) % 10) - 5;
-    return Math.max(5, base + jitter);
-  })();
 
   return (
     <View style={styles.root}>
@@ -229,8 +216,8 @@ export default function RestaurantDetailScreen() {
                 )}
                 {restaurant.isOpen !== undefined && (
                   <View style={[styles.openPill, restaurant.isOpen ? styles.openPillOpen : styles.openPillClosed]}>
-                    <View style={[styles.openDot, { backgroundColor: restaurant.isOpen ? '#00C896' : COLORS.error }]} />
-                    <Text style={[styles.openText, { color: restaurant.isOpen ? '#00C896' : COLORS.error }]}>
+                    <View style={[styles.openDot, { backgroundColor: restaurant.isOpen ? COLORS.scoreGood : COLORS.error }]} />
+                    <Text style={[styles.openText, { color: restaurant.isOpen ? COLORS.scoreGood : COLORS.error }]}>
                       {restaurant.isOpen ? 'ახლა ღია' : 'დახურულია'}
                     </Text>
                     {todayHours && !todayHours.isClosed && (
@@ -238,6 +225,9 @@ export default function RestaurantDetailScreen() {
                     )}
                   </View>
                 )}
+              {restaurant.avgMenuPrice ? (
+                <View style={styles.openPill}><Text style={styles.openText}>{restaurant.priceLevel ? '₾'.repeat(restaurant.priceLevel) : '≈ ₾' + Math.round(Number(restaurant.avgMenuPrice))}</Text></View>
+              ) : null}
               </View>
             </View>
             {rating > 0 && (
@@ -259,21 +249,6 @@ export default function RestaurantDetailScreen() {
             </View>
           )}
         </View>
-
-        {/* ── Live wait time ── */}
-        {waitTime !== null && (
-          <View style={styles.waitRow}>
-            <View style={[styles.waitBadge, waitTime <= 10 && styles.waitBadgeFast, waitTime >= 25 && styles.waitBadgeBusy]}>
-              <Ionicons name="time-outline" size={13} color={waitTime >= 25 ? '#F97316' : waitTime <= 10 ? '#00C896' : COLORS.primary} />
-              <Text style={[styles.waitText, waitTime >= 25 && { color: '#F97316' }, waitTime <= 10 && { color: '#00C896' }]}>
-                {waitTime <= 10 ? 'თითქმის არ არის მოლოდინი' : `~${waitTime} წთ მოლოდინი`}
-              </Text>
-            </View>
-            <View style={styles.busynessBar}>
-              <View style={[styles.busynessFill, { width: `${Math.min(100, (waitTime / 35) * 100)}%` as any, backgroundColor: waitTime >= 25 ? '#F97316' : waitTime <= 10 ? '#00C896' : COLORS.primary }]} />
-            </View>
-          </View>
-        )}
 
         {/* ── Quick actions ── */}
         <View style={styles.quickActions}>
@@ -362,6 +337,13 @@ export default function RestaurantDetailScreen() {
                     <Text style={styles.offerTitle}>{discount}% ფასდაკლება</Text>
                     <Text style={styles.offerSub}>ჯავშნის გაკეთებისას</Text>
                   </View>
+                </View>
+              )}
+
+              {offers.length > 0 && (
+                <View style={styles.eventsBlock}>
+                  <Text style={styles.eventsSectionTitle}>სპეციალური შეთავაზებები</Text>
+                  {offers.slice(0, 3).map(offer => <View key={offer.id} style={styles.offerBlock}><Ionicons name="pricetag-outline" size={18} color={COLORS.primary} /><View style={{flex:1}}><Text style={styles.offerTitle}>{offer.title}</Text><Text style={styles.offerSub}>{offer.description || (offer.discountPercent ? `${offer.discountPercent}% ფასდაკლება` : 'სპეციალური შეთავაზება')}</Text></View></View>)}
                 </View>
               )}
 
@@ -504,7 +486,15 @@ export default function RestaurantDetailScreen() {
                           <Text style={[styles.reviewScoreText, { color: revColor }]}>{revRating.toFixed(1)}</Text>
                         </View>
                       </View>
+                      <View style={styles.reviewMetaRow}>
+                        {rev.verified ? <View style={styles.verifiedPill}><Ionicons name="checkmark-circle" size={11} color={COLORS.success}/><Text style={styles.verifiedText}>დადასტურებული ვიზიტი</Text></View> : null}
+                        {rev.foodRating ? <Text style={styles.subRatingText}>საკვები {rev.foodRating}/5</Text> : null}
+                        {rev.serviceRating ? <Text style={styles.subRatingText}>სერვისი {rev.serviceRating}/5</Text> : null}
+                        {rev.ambienceRating ? <Text style={styles.subRatingText}>გარემო {rev.ambienceRating}/5</Text> : null}
+                      </View>
                       {rev.comment ? <Text style={styles.reviewComment}>{rev.comment}</Text> : null}
+                      {rev.photos?.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.reviewPhotoRow}>{rev.photos.slice(0,4).map(photo => <Image key={photo.id} source={{ uri: photo.url }} style={styles.reviewPhoto}/>)}</ScrollView> : null}
+                      {rev.restaurantReply ? <View style={styles.restaurantReply}><Text style={styles.restaurantReplyTitle}>პასუხი რესტორნისგან</Text><Text style={styles.restaurantReplyText}>{rev.restaurantReply}</Text>{rev.restaurantReplyAt ? <Text style={styles.restaurantReplyDate}>{new Date(rev.restaurantReplyAt).toLocaleDateString('ka-GE')}</Text> : null}</View> : null}
                     </View>
                   );
                 })
@@ -524,7 +514,7 @@ export default function RestaurantDetailScreen() {
         )}
         <Button
           label="მაგიდის დაჯავშნა"
-          onPress={() => requireAuth(() => navigation.navigate('Booking', { restaurantId: id, restaurantName: restaurant.name }))}
+          onPress={() => requireAuth(() => navigation.navigate('Booking', { restaurantId: id, restaurantName: restaurant.name, date: bookingDate, time: bookingTime, guests: bookingGuests }))}
         />
       </View>
 
@@ -580,7 +570,7 @@ const styles = StyleSheet.create({
   nameSubRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   cuisine: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '500' },
   openPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 3, borderRadius: RADIUS.full },
-  openPillOpen: { backgroundColor: '#00C89622' },
+  openPillOpen: { backgroundColor: '#2AA87618' },
   openPillClosed: { backgroundColor: COLORS.error + '22' },
   openDot: { width: 6, height: 6, borderRadius: 3 },
   openText: { fontSize: 12, fontWeight: '700' },
@@ -683,7 +673,17 @@ const styles = StyleSheet.create({
   reviewDate: { fontSize: 11, color: COLORS.textMuted, marginTop: 1 },
   reviewScore: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.sm },
   reviewScoreText: { fontSize: 13, fontWeight: '800' },
+  reviewMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 7 },
+  verifiedPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, backgroundColor: COLORS.success + '12' },
+  verifiedText: { fontSize: 8, color: COLORS.success, fontWeight: '800' },
+  subRatingText: { fontSize: 8, color: COLORS.textMuted, backgroundColor: COLORS.surfaceElevated, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  reviewPhotoRow: { gap: 6, paddingTop: 8, paddingBottom: 2 },
+  reviewPhoto: { width: 68, height: 68, borderRadius: 9 },
   reviewComment: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 21 },
+  restaurantReply: { marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: COLORS.primaryLight, borderWidth: 1, borderColor: COLORS.primary + '33' },
+  restaurantReplyTitle: { fontSize: 10, fontWeight: '900', color: COLORS.primary, marginBottom: 3 },
+  restaurantReplyText: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17 },
+  restaurantReplyDate: { marginTop: 4, fontSize: 9, color: COLORS.textMuted },
 
   // Empty states
   emptyWrap: { alignItems: 'center', paddingVertical: SPACING.xl, gap: SPACING.sm },

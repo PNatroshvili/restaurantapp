@@ -12,20 +12,22 @@ import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../../store/authStore';
 import { bookingsApi } from '../../api/bookings';
 import { Booking, RootStackParamList } from '../../types';
-import { COLORS, SPACING, RADIUS, BOOKING_STATUSES } from '../../constants';
+import { API_BASE_URL, COLORS, SPACING, RADIUS, BOOKING_STATUSES } from '../../constants';
 import Button from '../../components/common/Button';
 import { SkeletonRestaurantRow } from '../../components/common/Skeleton';
 import ReviewPromptModal from '../../components/common/ReviewPromptModal';
 import QRModal from '../../components/common/QRModal';
 import ConfirmModal from '../../components/common/ConfirmModal';
 
-const SOCKET_URL = 'http://localhost:3000';
+const SOCKET_URL = API_BASE_URL.replace(/\/v1\/?$/, '');
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -92,6 +94,7 @@ export default function BookingsScreen() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled'>('all');
   const [reviewBooking, setReviewBooking] = useState<Booking | null>(null);
   const [qrBooking, setQrBooking] = useState<Booking | null>(null);
@@ -101,7 +104,8 @@ export default function BookingsScreen() {
 
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
-    const socket = io(`${SOCKET_URL}/bookings`, { path: '/socket.io', transports: ['websocket'] });
+    const token = useAuthStore.getState().accessToken || '';
+    const socket = io(`${SOCKET_URL}/bookings`, { path: '/socket.io', transports: ['websocket'], auth: { token } });
     socketRef.current = socket;
     socket.emit('joinUserRoom', user.id);
     socket.on('bookingUpdated', (updated: Booking) => {
@@ -128,6 +132,7 @@ export default function BookingsScreen() {
 
   const load = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
+    setLoadError('');
     try {
       const { data } = await bookingsApi.getMy();
       setBookings(prev => {
@@ -141,7 +146,7 @@ export default function BookingsScreen() {
         return data;
       });
     } catch {
-      // silent — pull-to-refresh retry available
+      setLoadError('ჯავშნების ჩატვირთვა ვერ მოხერხდა. სცადე თავიდან.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -170,7 +175,7 @@ export default function BookingsScreen() {
       setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'cancelled' } : b));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      // silent
+      setLoadError('ჯავშნის გაუქმება ვერ მოხერხდა.');
     }
   };
 
@@ -306,6 +311,7 @@ export default function BookingsScreen() {
                       <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
                       <Text style={[styles.statusText, { color: cfg.color }]}>{cfg.label}</Text>
                     </View>
+                    {(b.discountPercentApplied || 0) > 0 ? <View style={styles.offerBadge}><Ionicons name="pricetag-outline" size={11} color={COLORS.primary}/><Text style={styles.offerBadgeText}>-{b.discountPercentApplied}% შეთავაზება</Text></View> : null}
                   </View>
                 </View>
 
@@ -374,6 +380,11 @@ export default function BookingsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
+  errorBanner: { marginHorizontal: SPACING.md, marginTop: SPACING.sm, paddingHorizontal: SPACING.sm, paddingVertical: 8, borderRadius: RADIUS.md, backgroundColor: COLORS.error + '10', borderWidth: 1, borderColor: COLORS.error + '22', flexDirection: 'row', alignItems: 'center', gap: 7 },
+  errorBannerText: { flex: 1, color: COLORS.textSecondary, fontSize: 11 },
+  retryText: { color: COLORS.primary, fontSize: 11, fontWeight: '800' },
+  offerBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, backgroundColor: COLORS.primaryLight, marginTop: 5 },
+  offerBadgeText: { fontSize: 9, color: COLORS.primary, fontWeight: '800' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: COLORS.surface },
   title: { fontSize: 20, fontWeight: '800', color: COLORS.text },
 

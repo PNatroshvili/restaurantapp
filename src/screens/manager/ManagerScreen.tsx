@@ -9,13 +9,13 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { io, Socket } from 'socket.io-client';
-import { COLORS, SPACING, RADIUS } from '../../constants';
+import { API_BASE_URL, COLORS, SPACING, RADIUS } from '../../constants';
 import { bookingsApi } from '../../api/bookings';
 import { managerApi } from '../../api/restaurants';
 import { useAuthStore } from '../../store/authStore';
 import { Booking, Restaurant, RootStackParamList } from '../../types';
 
-const SOCKET_URL = 'http://localhost:3000';
+const SOCKET_URL = API_BASE_URL.replace(/\/v1\/?$/, '');
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -35,6 +35,9 @@ const MANAGE_CARDS: {
   { icon: 'images-outline',             label: 'ფოტოგალერეა',    sub: 'სურათების ატვირთვა',               color: '#8E44AD', route: 'ManagerPhotos' },
   { icon: 'time-outline',               label: 'სამუშაო საათები', sub: 'გახსნისა და დახურვის დრო',        color: '#27AE60', route: 'ManagerWorkingHours' },
   { icon: 'pricetag-outline',           label: 'ფასდაკლება',     sub: 'პროცენტული ფასდაკლება',           color: '#C0392B', route: 'ManagerDiscounts' },
+  { icon: 'megaphone-outline',          label: 'შეთავაზებები',   sub: 'დროებითი აქციები და პირობები',      color: '#D35839', route: 'ManagerOffers' },
+  { icon: 'hourglass-outline',          label: 'მოლოდინის სია',  sub: 'თავისუფალი მაგიდის მომლოდინე სტუმრები', color: '#8E44AD', route: 'ManagerWaitlist' },
+  { icon: 'grid-outline',               label: 'მაგიდები',       sub: 'ტევადობა და floor plan',                 color: '#D35839', route: 'ManagerTables' },
   { icon: 'megaphone-outline',          label: 'ღონისძიებები',   sub: 'სპეციალური შეთავაზებები',         color: '#9B59B6', route: 'ManagerEvents' },
 ];
 
@@ -58,11 +61,13 @@ export default function ManagerScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed'>('pending');
+  const [analytics, setAnalytics] = useState<{ totalBookings:number; todayBookings:number; confirmedBookings:number; cancelledBookings:number; guests:number; ratingAvg:number; reviewsCount:number; daily:{date:string;bookings:number;guests:number}[] } | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
-    const socket = io(`${SOCKET_URL}/bookings`, { path: '/socket.io', transports: ['websocket'] });
+    const token = useAuthStore.getState().accessToken || '';
+    const socket = io(`${SOCKET_URL}/bookings`, { path: '/socket.io', transports: ['websocket'], auth: { token } });
     socketRef.current = socket;
     socket.emit('joinManagerRoom', user.id);
     socket.on('newBooking', (booking: Booking) => {
@@ -78,12 +83,14 @@ export default function ManagerScreen() {
   const load = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const [bRes, rRes] = await Promise.allSettled([
+      const [bRes, rRes, aRes] = await Promise.allSettled([
         bookingsApi.getMyRestaurant(),
         managerApi.getMyRestaurant(),
+        managerApi.getAnalytics(),
       ]);
       if (bRes.status === 'fulfilled') setBookings(bRes.value.data);
       if (rRes.status === 'fulfilled') setRestaurant(rRes.value.data);
+      if (aRes.status === 'fulfilled') setAnalytics(aRes.value.data);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -97,6 +104,7 @@ export default function ManagerScreen() {
   const confirmed = bookings.filter(b => b.status === 'confirmed').length;
   const todayTotal = bookings.filter(b => b.date === today).length;
   const totalGuests = bookings.filter(b => b.status === 'confirmed').reduce((s, b) => s + b.guestsCount, 0);
+  const cancellationRate = analytics?.totalBookings ? Math.round((analytics.cancelledBookings / analytics.totalBookings) * 100) : 0;
 
   const DAY_LABELS = ['კვი', 'ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ'];
   const bookingsByDay = DAY_LABELS.map((_, i) =>
@@ -165,6 +173,12 @@ export default function ManagerScreen() {
             <Ionicons name="refresh-outline" size={20} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
+
+        {analytics ? <View style={styles.analyticsSnapshot}>
+          <View><Text style={styles.analyticsValue}>{analytics.ratingAvg.toFixed(1)}</Text><Text style={styles.analyticsLabel}>რეიტინგი · {analytics.reviewsCount} შეფასება</Text></View>
+          <View><Text style={styles.analyticsValue}>{analytics.todayBookings}</Text><Text style={styles.analyticsLabel}>დღეს</Text></View>
+          <View><Text style={styles.analyticsValue}>{cancellationRate}%</Text><Text style={styles.analyticsLabel}>გაუქმება</Text></View>
+        </View> : null}
 
         {/* Stats */}
         <View style={styles.statsRow}>
@@ -351,6 +365,9 @@ const styles = StyleSheet.create({
   confirmText: { fontSize: 13, color: '#fff', fontWeight: '700' },
   chatBtn: { paddingHorizontal: SPACING.md, paddingVertical: 12, borderLeftWidth: 1, borderLeftColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
 
+  analyticsSnapshot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: SPACING.md, marginBottom: SPACING.sm, paddingHorizontal: SPACING.md, paddingVertical: 12, borderRadius: RADIUS.lg, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border },
+  analyticsValue: { fontSize: 18, fontWeight: '900', color: COLORS.text, textAlign: 'center' },
+  analyticsLabel: { fontSize: 9, color: COLORS.textSecondary, marginTop: 2, textAlign: 'center' },
   chart: { flexDirection: 'row', alignItems: 'flex-end', height: 100, gap: 6, paddingTop: 8 },
   chartBar: { flex: 1, alignItems: 'center', gap: 4 },
   chartCount: { fontSize: 10, fontWeight: '800', color: COLORS.primary, height: 14 },

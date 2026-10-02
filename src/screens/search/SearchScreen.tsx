@@ -666,7 +666,7 @@ function SearchCard({ restaurant: r, navigation, userLocation, availableTimes, b
   const rating = Number(r.ratingAvg) || 0;
   const score = rating.toFixed(1);
   const sc = scoreColor(rating);
-  const discount = Number(r.discountPercent || 0) || null;
+  const discount = Math.max(Number(r.discountPercent || 0), Number(r.bestOfferDiscount || 0)) || null;
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start();

@@ -164,7 +164,7 @@ export interface PaginatedResponse<T> {
 export type RootStackParamList = {
   Onboarding: undefined;
   Main: { screen?: keyof MainTabParamList; params?: any } | undefined;
-  RestaurantDetail: { id: string };
+  RestaurantDetail: { id: string; date?: string; time?: string; guests?: number };
   Booking: { restaurantId: string; restaurantName?: string; restaurantImage?: string; date?: string; time?: string; guests?: number };
   ReviewCreate: { restaurantId: string };
   ProfileEdit: undefined;

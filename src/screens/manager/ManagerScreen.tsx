@@ -61,6 +61,7 @@ export default function ManagerScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed'>('pending');
+  const [analytics, setAnalytics] = useState<{ totalBookings:number; todayBookings:number; confirmedBookings:number; cancelledBookings:number; guests:number; ratingAvg:number; reviewsCount:number; daily:{date:string;bookings:number;guests:number}[] } | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -89,6 +90,7 @@ export default function ManagerScreen() {
       ]);
       if (bRes.status === 'fulfilled') setBookings(bRes.value.data);
       if (rRes.status === 'fulfilled') setRestaurant(rRes.value.data);
+      if (aRes.status === 'fulfilled') setAnalytics(aRes.value.data);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -363,6 +365,9 @@ const styles = StyleSheet.create({
   confirmText: { fontSize: 13, color: '#fff', fontWeight: '700' },
   chatBtn: { paddingHorizontal: SPACING.md, paddingVertical: 12, borderLeftWidth: 1, borderLeftColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
 
+  analyticsSnapshot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: SPACING.md, marginBottom: SPACING.sm, paddingHorizontal: SPACING.md, paddingVertical: 12, borderRadius: RADIUS.lg, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border },
+  analyticsValue: { fontSize: 18, fontWeight: '900', color: COLORS.text, textAlign: 'center' },
+  analyticsLabel: { fontSize: 9, color: COLORS.textSecondary, marginTop: 2, textAlign: 'center' },
   chart: { flexDirection: 'row', alignItems: 'flex-end', height: 100, gap: 6, paddingTop: 8 },
   chartBar: { flex: 1, alignItems: 'center', gap: 4 },
   chartCount: { fontSize: 10, fontWeight: '800', color: COLORS.primary, height: 14 },

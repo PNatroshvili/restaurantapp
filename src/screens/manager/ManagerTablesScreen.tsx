@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, RefreshControl, ActivityIndicator, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -94,6 +94,19 @@ export default function ManagerTablesScreen() {
       renderItem={({ item }) => <View style={[styles.row, !item.isActive && { opacity: .55 }]}>
         <View style={[styles.tableVisual, item.shape === 'round' && styles.round, item.shape === 'rectangle' && styles.rectangle]}><Text style={styles.tableName}>{item.name}</Text><Text style={styles.tableCapacity}>{item.capacity}</Text></View>
         <View style={styles.copy}><Text style={styles.rowTitle}>{item.name}</Text><Text style={styles.rowMeta}>{item.capacity} ადგილი{item.zone ? ' · ' + item.zone : ''}</Text><Text style={styles.status}>{item.isActive ? 'აქტიური' : 'გამორთული'}</Text></View>
+        <Switch
+          value={item.isActive}
+          onValueChange={async (value) => {
+            try {
+              const res = await managerApi.updateTable(item.id, { isActive: value });
+              setTables(prev => prev.map(t => t.id === item.id ? res.data : t));
+            } catch {
+              showToast('მაგიდის სტატუსი ვერ შეიცვალა', 'error');
+            }
+          }}
+          trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+          thumbColor={item.isActive ? COLORS.primary : COLORS.textMuted}
+        />
         <TouchableOpacity onPress={() => remove(item)} style={styles.delete}><Ionicons name="trash-outline" size={18} color={COLORS.error}/></TouchableOpacity>
       </View>}
     />
